@@ -24,6 +24,13 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow SuperCampus to choose a profile photo from your gallery.",
+          "cameraPermission": "Allow SuperCampus to take a profile photo."
+        }
+      ],
       "expo-router",
       [
         "expo-splash-screen",

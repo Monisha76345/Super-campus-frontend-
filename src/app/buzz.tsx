@@ -1,12 +1,6 @@
 import React from 'react';
-
-import { BuzzScreen } from '@/features/campus/screens';
-import { ScreenContainer } from '@/layouts';
+import { InboxScreen } from '@/features/chat/InboxScreen';
 
 export default function BuzzRoute() {
-  return (
-    <ScreenContainer scrollable={false}>
-      <BuzzScreen />
-    </ScreenContainer>
-  );
+  return <InboxScreen />;
 }

@@ -28,7 +28,7 @@ function resolveScheme(preference: AppTheme, system: ColorSchemeName): 'light' |
 
 export function AppThemeProvider({ children }: { children: ReactNode }) {
   const [preference, setPreferenceState] = useState<AppTheme>(AppTheme.Dark);
-  const [systemScheme, setSystemScheme] = useState<ColorSchemeName>(Appearance.getColorScheme());
+  const [systemScheme, setSystemScheme] = useState<ColorSchemeName>(Appearance.getColorScheme() ?? 'dark');
 
   useEffect(() => {
     themePreference

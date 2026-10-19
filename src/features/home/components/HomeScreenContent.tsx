@@ -1,12 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { ColorTokens } from '@/constants/colors';
 import { Typography } from '@/constants/fonts';
 import { useColors } from '@/theme/app-theme';
 import { openTab } from '@/features/campus/navigation';
+import { useAuthSession } from '@/features/auth';
+import { profileApi } from '@/features/profile/api/profile-api';
+import { CampusProfile } from '@/features/profile/types';
 
 import { CommunityHeroCard } from './CommunityHeroCard';
 import { DigitalStudentIDCard } from './DigitalStudentIDCard';
@@ -21,19 +24,50 @@ export function HomeScreenContent() {
   const Colors = useColors();
   const styles = useMemo(() => createStyles(Colors), [Colors]);
   const router = useRouter();
+  const { user } = useAuthSession();
+  const [profile, setProfile] = useState<CampusProfile | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab] = useState<TabKey>('home');
 
-  const onRefresh = () => {
+  const fetchProfile = useCallback(async () => {
+    if (!user?.token || !user?.tenantId) return;
+    try {
+      const data = await profileApi.getMine({ token: user.token, tenantId: user.tenantId });
+      setProfile(data);
+    } catch {
+      // Fallback silently to session details on network delay
+    }
+  }, [user?.token, user?.tenantId]);
+
+  useEffect(() => {
+    fetchProfile();
+  }, [fetchProfile]);
+
+  const onRefresh = async () => {
     setRefreshing(true);
-    setTimeout(() => {
-      setRefreshing(false);
-    }, 900);
+    await fetchProfile();
+    setRefreshing(false);
   };
 
   const handleCenterScan = () => {
     router.push('/scan');
   };
+
+  const displayName =
+    (profile?.firstName ? `${profile.firstName} ${profile.lastName || ''}`.trim() : null) ||
+    user?.fullName ||
+    'Student';
+
+  const campusDisplayName = user?.campusName || 'NMIT Bengaluru';
+  const studentId = profile?.usn || (user?.email ? user.email.split('@')[0].toUpperCase() : 'STUDENT');
+  const department =
+    profile?.department ||
+    (user?.role === 'admin'
+      ? 'Administration'
+      : user?.role === 'faculty'
+        ? 'Faculty'
+        : 'Engineering');
+  const academicYear = profile?.batch || '2024';
 
   return (
     <View style={styles.root}>
@@ -54,19 +88,19 @@ export function HomeScreenContent() {
         }>
         {/* Top Header Bar */}
         <HomeHeader
-          campusName="NMIT Bengaluru"
-          userName="Dr"
+          campusName={campusDisplayName}
+          userName={displayName}
           onProfilePress={() => router.push('/profile')}
           onNotificationPress={() => router.push('/notifications')}
         />
 
         {/* 1. Futuristic Digital Student ID Card */}
         <DigitalStudentIDCard
-          studentName="Druva"
-          studentId="1NT22AD015"
-          department="AI & Data Science"
-          academicYear="2022"
-          campusName="NMIT Bengaluru"
+          studentName={displayName}
+          studentId={studentId}
+          department={department}
+          academicYear={academicYear}
+          campusName={campusDisplayName}
         />
 
         {/* 2. Asymmetric Live Bento Widgets (Schedule, Attendance, Outpass) */}

@@ -34,12 +34,20 @@ export const profileApi = {
     return apiRequest<CampusProfile>('/profile/education', { method: 'POST', ...authHeaders(auth), body });
   },
 
+  updateEducation(auth: SessionAuth, itemId: string, body: EducationInput): Promise<CampusProfile> {
+    return apiRequest<CampusProfile>(`/profile/education/${itemId}`, { method: 'PATCH', ...authHeaders(auth), body });
+  },
+
   removeEducation(auth: SessionAuth, itemId: string): Promise<CampusProfile> {
     return apiRequest<CampusProfile>(`/profile/education/${itemId}`, { method: 'DELETE', ...authHeaders(auth) });
   },
 
   addExperience(auth: SessionAuth, body: ExperienceInput): Promise<CampusProfile> {
     return apiRequest<CampusProfile>('/profile/experience', { method: 'POST', ...authHeaders(auth), body });
+  },
+
+  updateExperience(auth: SessionAuth, itemId: string, body: ExperienceInput): Promise<CampusProfile> {
+    return apiRequest<CampusProfile>(`/profile/experience/${itemId}`, { method: 'PATCH', ...authHeaders(auth), body });
   },
 
   removeExperience(auth: SessionAuth, itemId: string): Promise<CampusProfile> {

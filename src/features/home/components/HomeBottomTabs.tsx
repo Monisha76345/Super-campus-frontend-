@@ -12,7 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ColorTokens } from '@/constants/colors';
 import { Typography } from '@/constants/fonts';
-import { useColors } from '@/theme/app-theme';
+import { useAppTheme } from '@/theme/app-theme';
 
 export type TabKey = 'home' | 'services' | 'community' | 'profile';
 
@@ -36,7 +36,7 @@ const LEFT_TABS: TabItem[] = [
 ];
 
 const RIGHT_TABS: TabItem[] = [
-  { key: 'community', label: 'Buzz', icon: 'chatbubbles-outline', activeIcon: 'chatbubbles', badge: true },
+  { key: 'community', label: 'Inbox', icon: 'chatbubble-outline', activeIcon: 'chatbubble', badge: false },
   { key: 'profile', label: 'Profile', icon: 'person-outline', activeIcon: 'person' },
 ];
 
@@ -45,8 +45,9 @@ export function HomeBottomTabs({
   onTabChange,
   onCenterActionPress,
 }: HomeBottomTabsProps) {
-  const Colors = useColors();
-  const styles = useMemo(() => createStyles(Colors), [Colors]);
+  const { scheme, colors: Colors } = useAppTheme();
+  const isDark = scheme === 'dark';
+  const styles = useMemo(() => createStyles(Colors, isDark), [Colors, isDark]);
   const insets = useSafeAreaInsets();
   const bottomOffset = Math.max(insets.bottom, 12) + 8;
 
@@ -63,24 +64,26 @@ export function HomeBottomTabs({
 
   const renderTab = (tab: TabItem) => {
     const isActive = activeTab === tab.key;
+    const isInbox = tab.key === 'community';
+    const inboxActiveColor = isDark ? '#C4B5FD' : '#6D28D9';
     return (
       <Pressable
         key={tab.key}
         onPress={() => onTabChange(tab.key)}
         style={({ pressed }) => [styles.tabButton, pressed && styles.tabPressed]}
         hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}>
-        <View style={styles.iconContainer}>
+        <View style={[styles.iconContainer, isActive && isInbox && styles.activeInboxPill]}>
           <Ionicons
             name={isActive ? tab.activeIcon : tab.icon}
-            size={22}
-            color={isActive ? Colors.primary.cyan : Colors.text.secondary}
+            size={21}
+            color={isActive ? (isInbox ? inboxActiveColor : Colors.primary.cyan) : Colors.text.secondary}
           />
           {tab.badge && !isActive && <View style={styles.tabBadgeDot} />}
         </View>
-        <Text style={[styles.tabLabel, isActive ? styles.activeLabel : styles.inactiveLabel]}>
+        <Text style={[styles.tabLabel, isActive ? (isInbox ? styles.activeInboxLabel : styles.activeLabel) : styles.inactiveLabel]}>
           {tab.label}
         </Text>
-        {isActive && <View style={styles.activeUnderlineDot} />}
+        {isActive && !isInbox && <View style={styles.activeUnderlineDot} />}
       </Pressable>
     );
   };
@@ -113,7 +116,7 @@ export function HomeBottomTabs({
   );
 }
 
-function createStyles(Colors: ColorTokens) {
+function createStyles(Colors: ColorTokens, isDark: boolean) {
   return StyleSheet.create({
   capsuleWrapper: {
     position: 'absolute',
@@ -128,7 +131,7 @@ function createStyles(Colors: ColorTokens) {
     width: '88%',
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(99, 102, 241, 0.28)',
+    backgroundColor: isDark ? 'rgba(99, 102, 241, 0.28)' : 'rgba(99, 102, 241, 0.12)',
     filter: Platform.OS === 'web' ? 'blur(18px)' : undefined,
   },
   capsuleBar: {
@@ -145,7 +148,7 @@ function createStyles(Colors: ColorTokens) {
     // Floating elevation & drop shadow
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.6,
+    shadowOpacity: isDark ? 0.6 : 0.14,
     shadowRadius: 22,
     elevation: 16,
   },
@@ -169,8 +172,15 @@ function createStyles(Colors: ColorTokens) {
     position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
-    height: 26,
+    height: 28,
     marginBottom: 2,
+  },
+  activeInboxPill: {
+    backgroundColor: isDark ? 'rgba(109, 40, 217, 0.45)' : 'rgba(109, 40, 217, 0.14)', // Vivid purple container from Image 1
+    paddingHorizontal: 16,
+    paddingVertical: 2,
+    borderRadius: 16,
+    height: 28,
   },
   tabBadgeDot: {
     position: 'absolute',
@@ -190,6 +200,11 @@ function createStyles(Colors: ColorTokens) {
   },
   activeLabel: {
     color: Colors.text.accent,
+    fontFamily: Typography.bold,
+    fontWeight: '700',
+  },
+  activeInboxLabel: {
+    color: isDark ? '#C4B5FD' : '#6D28D9', // Soft purple matching Image 1
     fontFamily: Typography.bold,
     fontWeight: '700',
   },

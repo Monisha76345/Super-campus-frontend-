@@ -14,7 +14,7 @@ export function openTab(router: AppRouter, tab: TabKey) {
     return;
   }
   if (tab === 'community') {
-    router.replace('/buzz');
+    router.replace('/inbox');
     return;
   }
   router.replace('/profile');
@@ -35,7 +35,7 @@ export function openService(router: AppRouter, id: string) {
               : id === 'connect'
                 ? '/connect'
                 : id === 'messages'
-                  ? '/messages'
+                  ? '/inbox'
                   : '/notifications';
   router.push(path);
 }

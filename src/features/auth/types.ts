@@ -4,7 +4,7 @@ export interface LoginCredentials {
   rememberMe: boolean;
 }
 
-export type AccountRole = 'student' | 'faculty' | 'admin' | 'alumni';
+export type AccountRole = 'student' | 'faculty' | 'admin' | 'alumni' | 'superadmin';
 
 export interface UserSession {
   id: string;

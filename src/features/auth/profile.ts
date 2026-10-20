@@ -1,16 +1,20 @@
 import { AccountRole, LoginApiData, UserSession } from './types';
 
-const ACCOUNT_ROLES: AccountRole[] = ['student', 'faculty', 'admin', 'alumni'];
+const ACCOUNT_ROLES: AccountRole[] = ['student', 'faculty', 'admin', 'alumni', 'superadmin'];
 
 const ROLE_LABEL: Record<AccountRole, string> = {
   student: 'Student',
   faculty: 'Faculty',
   admin: 'Campus Admin',
   alumni: 'Alumni',
+  superadmin: 'Super Admin',
 };
 
 export function toUserSession(data: LoginApiData): UserSession {
-  const role = data.role?.trim().toLowerCase();
+  let role = data.role?.trim().toLowerCase();
+  if (role === 'super_admin') {
+    role = 'superadmin';
+  }
   if (!ACCOUNT_ROLES.includes(role as AccountRole)) {
     throw new Error('This account role is not supported');
   }

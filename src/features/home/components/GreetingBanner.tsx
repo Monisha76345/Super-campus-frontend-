@@ -13,24 +13,24 @@ interface GreetingBannerProps {
 
 export function GreetingBanner({
   userName,
-  subtitle = 'Your campus. Your community. Your next big step.',
+  subtitle = 'Your people. Your campus. Your next step.',
 }: GreetingBannerProps) {
   const Colors = useColors();
   const styles = useMemo(() => createStyles(Colors), [Colors]);
+  const timeGreeting = useMemo(() => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'GOOD MORNING,';
+    if (hour < 17) return 'GOOD AFTERNOON,';
+    return 'GOOD EVENING,';
+  }, []);
+
   return (
     <View style={styles.container}>
       {/* Left Greeting & Subtitle */}
       <View style={styles.leftColumn}>
-        <View style={styles.salutationRow}>
-          <Text style={styles.salutation}>CAMPUS DASHBOARD</Text>
-          <View style={styles.livePulsePill}>
-            <View style={styles.pulseDot} />
-            <Text style={styles.pulseText}>Live</Text>
-          </View>
-        </View>
-
-        <Text style={styles.userName}>
-          Hello, {userName} <Text style={styles.waveEmoji}>👋</Text>
+        <Text style={styles.salutation}>{timeGreeting}</Text>
+        <Text style={styles.userName} numberOfLines={1}>
+          {userName}
         </Text>
         <Text style={styles.subtitle}>{subtitle}</Text>
       </View>

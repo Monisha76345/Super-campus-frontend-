@@ -15,7 +15,10 @@ interface UseLoginReturn {
   errors: ValidationErrors;
   serverError: string | null;
   isLoading: boolean;
-  handleSubmit: (onSuccess?: (user: UserSession) => void) => Promise<void>;
+  handleSubmit: (
+    onSuccess?: (user: UserSession) => void,
+    isSuperAdmin?: boolean,
+  ) => Promise<void>;
 }
 
 export function useLogin(): UseLoginReturn {
@@ -27,10 +30,19 @@ export function useLogin(): UseLoginReturn {
   const [serverError, setServerError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = async (onSuccess?: (user: UserSession) => void) => {
+  const handleSubmit = async (
+    onSuccess?: (user: UserSession) => void,
+    isSuperAdmin?: boolean,
+  ) => {
     setServerError(null);
 
-    const formErrors = validateLoginForm(email, password);
+    const cleanEmail = email.trim().toLowerCase();
+    const isSuperAdminAccount =
+      Boolean(isSuperAdmin) ||
+      cleanEmail.includes('superadmin') ||
+      cleanEmail.endsWith('@supercampus.io');
+
+    const formErrors = validateLoginForm(email, password, isSuperAdminAccount);
     setErrors(formErrors);
 
     if (Object.keys(formErrors).length > 0) {
@@ -40,7 +52,7 @@ export function useLogin(): UseLoginReturn {
     setIsLoading(true);
     try {
       const credentials: LoginCredentials = { email, password, rememberMe };
-      const user = await authApi.login(credentials);
+      const user = await authApi.login(credentials, isSuperAdminAccount);
       await signIn(user, rememberMe);
       onSuccess?.(user);
     } catch (err) {

@@ -12,13 +12,13 @@ import { profileApi } from '@/features/profile/api/profile-api';
 import { CampusProfile } from '@/features/profile/types';
 
 import { CommunityHeroCard } from './CommunityHeroCard';
-import { DigitalStudentIDCard } from './DigitalStudentIDCard';
 import { FoodDiningSection } from './FoodDiningSection';
+import { GreetingBanner } from './GreetingBanner';
 import { HomeBottomTabs, TabKey } from './HomeBottomTabs';
 import { HomeHeader } from './HomeHeader';
-import { LiveBentoWidgets } from './LiveBentoWidgets';
 import { QuickActionCategories } from './QuickActionCategories';
-import { TrendingAndInternships } from './TrendingAndInternships';
+import { StatusCardsGrid } from './StatusCardsGrid';
+import { CsvDirectoryImportModal } from '@/features/campus/components/admin/CsvDirectoryImportModal';
 
 export function HomeScreenContent() {
   const Colors = useColors();
@@ -28,6 +28,9 @@ export function HomeScreenContent() {
   const [profile, setProfile] = useState<CampusProfile | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab] = useState<TabKey>('home');
+  const [showCsvModal, setShowCsvModal] = useState(false);
+
+  const isSuperAdmin = user?.role === 'superadmin';
 
   const fetchProfile = useCallback(async () => {
     if (!user?.token || !user?.tenantId) return;
@@ -94,33 +97,62 @@ export function HomeScreenContent() {
           onNotificationPress={() => router.push('/notifications')}
         />
 
-        {/* 1. Futuristic Digital Student ID Card */}
-        <DigitalStudentIDCard
-          studentName={displayName}
-          studentId={studentId}
-          department={department}
-          academicYear={academicYear}
-          campusName={campusDisplayName}
+        {/* Super Admin Privileges: CSV Directory Import Hub */}
+        {isSuperAdmin && (
+          <View style={styles.superAdminCard}>
+            <View style={styles.superAdminHeaderRow}>
+              <View style={styles.superAdminPill}>
+                <Ionicons name="shield-checkmark" size={13} color="#38BDF8" />
+                <Text style={styles.superAdminPillText}>SUPER ADMIN PRIVILEGES</Text>
+              </View>
+              <View style={styles.multiTenantTag}>
+                <Ionicons name="globe-outline" size={12} color="#A78BFA" />
+                <Text style={styles.multiTenantTagText}>Multi-Tenant Root</Text>
+              </View>
+            </View>
+
+            <Text style={styles.superAdminTitle}>Campus Directory & CSV Onboarding</Text>
+            <Text style={styles.superAdminSubtitle}>
+              Batch onboard students, faculties, and administrators directly into campus databases with automated schema validation.
+            </Text>
+
+            <Pressable
+              onPress={() => setShowCsvModal(true)}
+              style={({ pressed }) => [styles.csvUploadButton, pressed && styles.pressed]}>
+              <View style={styles.csvIconCircle}>
+                <Ionicons name="cloud-upload-outline" size={18} color="#080B11" />
+              </View>
+              <View style={styles.csvButtonTextWrapper}>
+                <Text style={styles.csvButtonTitle}>Import Directory CSV</Text>
+                <Text style={styles.csvButtonSub}>Upload batch CSV spreadsheet to tenant database</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#38BDF8" />
+            </Pressable>
+          </View>
+        )}
+
+        {/* 1. Greeting Banner with Learn Build Belong motto */}
+        <GreetingBanner
+          userName={displayName}
+          subtitle="Your people. Your campus. Your next step."
         />
 
-        {/* 2. Asymmetric Live Bento Widgets (Schedule, Attendance, Outpass) */}
-        <LiveBentoWidgets />
-
-        {/* 3. Quick Action Hub / Services */}
-        <QuickActionCategories />
-
-        {/* 4. Campus Spotlight Hero */}
+        {/* 2. Community Spotlight Banner */}
         <CommunityHeroCard
-          title="Around campus"
-          campusName="NMIT Bengaluru"
+          category="FROM YOUR COMMUNITY"
+          title={`Around campus with ${displayName}`}
+          campusName={campusDisplayName}
           description="Find your community, projects, and campus updates in one place."
         />
 
+        {/* 3. Core Campus Services (Food, Marketplace, Sports, Outpass, Projects) */}
+        <QuickActionCategories />
+
+        {/* 4. Live Status Cards (Upcoming Booking & Outpass Status) */}
+        <StatusCardsGrid />
+
         {/* 5. Campus Bites & Cafeterias */}
         <FoodDiningSection />
-
-        {/* 6. Trending Buzz & Career Opportunities */}
-        <TrendingAndInternships />
 
         {/* Refresh Campus Updates Button */}
         <Pressable
@@ -136,6 +168,12 @@ export function HomeScreenContent() {
         activeTab={activeTab}
         onTabChange={(tab) => openTab(router, tab)}
         onCenterActionPress={handleCenterScan}
+      />
+
+      {/* Super Admin Bulk Directory Import Modal */}
+      <CsvDirectoryImportModal
+        visible={showCsvModal}
+        onClose={() => setShowCsvModal(false)}
       />
     </View>
   );
@@ -191,6 +229,107 @@ function createStyles(Colors: ColorTokens) {
   },
   pressed: {
     opacity: 0.7,
+  },
+  superAdminCard: {
+    backgroundColor: '#0A0F1D',
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: 'rgba(56, 189, 248, 0.35)',
+    padding: 18,
+    marginBottom: 20,
+    shadowColor: '#38BDF8',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 4,
+  },
+  superAdminHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  superAdminPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    backgroundColor: 'rgba(56, 189, 248, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.3)',
+  },
+  superAdminPillText: {
+    fontFamily: Typography.bold,
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#38BDF8',
+    letterSpacing: 0.8,
+  },
+  multiTenantTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: 'rgba(167, 139, 250, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(167, 139, 250, 0.25)',
+  },
+  multiTenantTagText: {
+    fontFamily: Typography.medium,
+    fontSize: 10,
+    color: '#C4B5FD',
+    fontWeight: '500',
+  },
+  superAdminTitle: {
+    fontFamily: Typography.bold,
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#F8FAFC',
+    marginBottom: 6,
+  },
+  superAdminSubtitle: {
+    fontFamily: Typography.regular,
+    fontSize: 12,
+    lineHeight: 18,
+    color: '#94A3B8',
+    marginBottom: 16,
+  },
+  csvUploadButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0F172A',
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.25)',
+    gap: 12,
+  },
+  csvIconCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: '#38BDF8',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  csvButtonTextWrapper: {
+    flex: 1,
+  },
+  csvButtonTitle: {
+    fontFamily: Typography.bold,
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#F8FAFC',
+    marginBottom: 2,
+  },
+  csvButtonSub: {
+    fontFamily: Typography.regular,
+    fontSize: 11,
+    color: '#94A3B8',
   },
 });
 }

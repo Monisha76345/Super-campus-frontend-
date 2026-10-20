@@ -13,8 +13,9 @@ import {
   View,
 } from 'react-native';
 
+import { ColorTokens } from '@/constants/colors';
 import { Typography } from '@/constants/fonts';
-import { AppMessageModal, AppMessageType } from '@/components/ui';
+import { AppMessageModal, AppMessageType, LogoLoader } from '@/components/ui';
 import { useAuthSession } from '@/features/auth/session/AuthSessionProvider';
 import { useColors } from '@/theme/app-theme';
 
@@ -323,7 +324,7 @@ export function ProjectsScreen() {
             onPress={onRefresh}
             style={styles.refreshBtn}
           >
-            <Ionicons name="refresh" size={20} color="#CBD5E1" />
+            <Ionicons name="refresh" size={20} color={Colors.text.secondary} />
           </Pressable>
         </View>
       </View>
@@ -335,7 +336,7 @@ export function ProjectsScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#818CF8"
+            tintColor={Colors.primary.accent}
           />
         }
       >
@@ -355,14 +356,14 @@ export function ProjectsScreen() {
               }}
               style={styles.createProjectBtn}
             >
-              <Ionicons name="add" size={20} color="#080B11" />
+              <Ionicons name="add" size={20} color={Colors.text.onBrand} />
               <Text style={styles.createProjectBtnText}>Create project</Text>
             </Pressable>
           </View>
 
           {/* Decorative Rocket Icon */}
           <View style={styles.rocketIconWatermark}>
-            <Ionicons name="rocket" size={90} color="rgba(255, 255, 255, 0.05)" />
+            <Ionicons name="rocket" size={90} color={Colors.border.subtle} />
           </View>
         </View>
 
@@ -385,10 +386,10 @@ export function ProjectsScreen() {
 
         {/* Projects List */}
         {loading && !refreshing ? (
-          <ActivityIndicator color="#818CF8" style={{ marginTop: 40 }} />
+          <LogoLoader size={48} text="Loading campus projects..." style={{ marginTop: 40 }} />
         ) : visibleProjects.length === 0 ? (
           <View style={styles.emptyState}>
-            <Ionicons name="folder-open-outline" size={48} color="#475569" />
+            <Ionicons name="folder-open-outline" size={48} color={Colors.text.tertiary} />
             <Text style={styles.emptyTitle}>No projects found</Text>
             <Text style={styles.emptySubtitle}>
               {myProjectsOnly
@@ -399,7 +400,7 @@ export function ProjectsScreen() {
               onPress={() => setShowWizard(true)}
               style={[styles.createProjectBtn, { marginTop: 14 }]}
             >
-              <Ionicons name="add" size={18} color="#080B11" />
+              <Ionicons name="add" size={18} color={Colors.text.onBrand} />
               <Text style={styles.createProjectBtnText}>Create first project</Text>
             </Pressable>
           </View>
@@ -454,11 +455,11 @@ export function ProjectsScreen() {
   );
 }
 
-function createStyles(Colors: any) {
+function createStyles(Colors: ColorTokens) {
   return StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: '#080B11',
+      backgroundColor: Colors.background.canvas,
     },
     topBar: {
       flexDirection: 'row',
@@ -484,7 +485,7 @@ function createStyles(Colors: any) {
       fontFamily: Typography.bold,
       fontSize: 24,
       fontWeight: '700',
-      color: '#F8FAFC',
+      color: Colors.text.primary,
     },
     topBarRight: {
       flexDirection: 'row',
@@ -498,27 +499,27 @@ function createStyles(Colors: any) {
       backgroundColor: 'transparent',
     },
     myProjectsBtnActive: {
-      backgroundColor: 'rgba(129, 140, 248, 0.15)',
+      backgroundColor: Colors.primary.glow,
     },
     myProjectsText: {
       fontFamily: Typography.medium,
       fontSize: 14,
       fontWeight: '600',
-      color: '#A5B4FC',
+      color: Colors.text.secondary,
     },
     myProjectsTextActive: {
-      color: '#818CF8',
+      color: Colors.primary.accent,
       fontWeight: '700',
     },
     refreshBtn: {
       width: 36,
       height: 36,
       borderRadius: 18,
-      backgroundColor: '#111625',
+      backgroundColor: Colors.background.surface,
       justifyContent: 'center',
       alignItems: 'center',
       borderWidth: 1,
-      borderColor: 'rgba(255, 255, 255, 0.08)',
+      borderColor: Colors.border.subtle,
     },
     scrollContent: {
       paddingHorizontal: 18,
@@ -527,9 +528,9 @@ function createStyles(Colors: any) {
     heroCard: {
       position: 'relative',
       borderRadius: 24,
-      backgroundColor: '#141829',
+      backgroundColor: Colors.background.surface,
       borderWidth: 1,
-      borderColor: 'rgba(129, 140, 248, 0.25)',
+      borderColor: Colors.border.card,
       overflow: 'hidden',
       marginBottom: 20,
       marginTop: 4,
@@ -542,14 +543,14 @@ function createStyles(Colors: any) {
       fontFamily: Typography.bold,
       fontSize: 22,
       fontWeight: '700',
-      color: '#F8FAFC',
+      color: Colors.text.primary,
       marginBottom: 8,
     },
     heroSubtitle: {
       fontFamily: Typography.regular,
       fontSize: 14,
       lineHeight: 20,
-      color: '#94A3B8',
+      color: Colors.text.secondary,
       marginBottom: 18,
       maxWidth: '85%',
     },
@@ -558,7 +559,7 @@ function createStyles(Colors: any) {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 6,
-      backgroundColor: '#A78BFA',
+      backgroundColor: Colors.primary.accent,
       borderRadius: 22,
       paddingHorizontal: 18,
       paddingVertical: 10,
@@ -567,7 +568,7 @@ function createStyles(Colors: any) {
       fontFamily: Typography.bold,
       fontSize: 14,
       fontWeight: '700',
-      color: '#080B11',
+      color: Colors.text.onBrand,
     },
     rocketIconWatermark: {
       position: 'absolute',
@@ -585,22 +586,22 @@ function createStyles(Colors: any) {
       paddingHorizontal: 18,
       paddingVertical: 8,
       borderRadius: 20,
-      backgroundColor: '#111625',
+      backgroundColor: Colors.background.surface,
       borderWidth: 1,
-      borderColor: 'rgba(255, 255, 255, 0.1)',
+      borderColor: Colors.border.card,
     },
     tabPillActive: {
-      backgroundColor: 'rgba(13, 148, 136, 0.22)',
-      borderColor: '#14B8A6',
+      backgroundColor: Colors.primary.main,
+      borderColor: Colors.primary.light,
     },
     tabText: {
       fontFamily: Typography.medium,
       fontSize: 13,
       fontWeight: '500',
-      color: '#94A3B8',
+      color: Colors.text.secondary,
     },
     tabTextActive: {
-      color: '#2DD4BF',
+      color: Colors.text.onBrand,
       fontWeight: '700',
     },
     emptyState: {
@@ -612,14 +613,14 @@ function createStyles(Colors: any) {
       fontFamily: Typography.bold,
       fontSize: 18,
       fontWeight: '700',
-      color: '#F8FAFC',
+      color: Colors.text.primary,
       marginTop: 12,
       marginBottom: 6,
     },
     emptySubtitle: {
       fontFamily: Typography.regular,
       fontSize: 14,
-      color: '#64748B',
+      color: Colors.text.tertiary,
       textAlign: 'center',
       maxWidth: 280,
     },

@@ -11,8 +11,9 @@ import {
   View,
 } from 'react-native';
 
+import { ColorTokens } from '@/constants/colors';
 import { Typography } from '@/constants/fonts';
-import { AppMessageModal, AppMessageType } from '@/components/ui';
+import { AppMessageModal, AppMessageType, LogoLoader } from '@/components/ui';
 import { useColors } from '@/theme/app-theme';
 import { Project, ProjectStatus } from '../../project-types';
 
@@ -139,11 +140,11 @@ export function ProjectDetailModal({
                   }}
                   style={styles.headerEditBtn}
                 >
-                  <Ionicons name="pencil" size={16} color="#A78BFA" />
+                  <Ionicons name="pencil" size={16} color={Colors.primary.accent} />
                 </Pressable>
               )}
               <Pressable onPress={onClose} style={styles.closeBtn}>
-                <Ionicons name="close" size={20} color="#94A3B8" />
+                <Ionicons name="close" size={20} color={Colors.text.secondary} />
               </Pressable>
             </View>
           </View>
@@ -260,7 +261,7 @@ export function ProjectDetailModal({
                 </Text>
 
                 {updating ? (
-                  <ActivityIndicator color="#A78BFA" style={{ marginVertical: 12 }} />
+                  <LogoLoader size={32} text="Updating status..." style={{ marginVertical: 8 }} />
                 ) : (
                   <View style={styles.statusButtonsRow}>
                     {project.status !== 'OPEN' && (
@@ -326,7 +327,7 @@ export function ProjectDetailModal({
   );
 }
 
-function createStyles(Colors: any) {
+function createStyles(Colors: ColorTokens) {
   return StyleSheet.create({
     overlay: {
       flex: 1,
@@ -334,11 +335,11 @@ function createStyles(Colors: any) {
       justifyContent: 'flex-end',
     },
     sheet: {
-      backgroundColor: '#0F172A',
+      backgroundColor: Colors.background.surface,
       borderTopLeftRadius: 28,
       borderTopRightRadius: 28,
       borderTopWidth: 1,
-      borderColor: 'rgba(255, 255, 255, 0.1)',
+      borderColor: Colors.border.card,
       maxHeight: '90%',
     },
     header: {
@@ -349,7 +350,7 @@ function createStyles(Colors: any) {
       paddingTop: 18,
       paddingBottom: 12,
       borderBottomWidth: 1,
-      borderBottomColor: 'rgba(255, 255, 255, 0.06)',
+      borderBottomColor: Colors.border.subtle,
     },
     badgesRow: {
       flexDirection: 'row',
@@ -368,11 +369,11 @@ function createStyles(Colors: any) {
       paddingHorizontal: 10,
       paddingVertical: 4,
       borderRadius: 12,
-      backgroundColor: 'rgba(255, 255, 255, 0.08)',
+      backgroundColor: Colors.background.pillInactive,
     },
     categoryBadgeText: {
       fontSize: 12,
-      color: '#CBD5E1',
+      color: Colors.text.secondary,
       fontWeight: '500',
     },
     headerActions: {
@@ -384,9 +385,9 @@ function createStyles(Colors: any) {
       width: 32,
       height: 32,
       borderRadius: 16,
-      backgroundColor: 'rgba(167, 139, 250, 0.14)',
+      backgroundColor: Colors.background.pillInactive,
       borderWidth: 1,
-      borderColor: 'rgba(167, 139, 250, 0.28)',
+      borderColor: Colors.border.subtle,
       justifyContent: 'center',
       alignItems: 'center',
     },
@@ -394,7 +395,7 @@ function createStyles(Colors: any) {
       width: 32,
       height: 32,
       borderRadius: 16,
-      backgroundColor: 'rgba(255, 255, 255, 0.08)',
+      backgroundColor: Colors.background.pillInactive,
       justifyContent: 'center',
       alignItems: 'center',
     },
@@ -406,14 +407,14 @@ function createStyles(Colors: any) {
       fontFamily: Typography.bold,
       fontSize: 22,
       fontWeight: '700',
-      color: '#F8FAFC',
+      color: Colors.text.primary,
       marginBottom: 8,
     },
     description: {
       fontFamily: Typography.regular,
       fontSize: 15,
       lineHeight: 22,
-      color: '#94A3B8',
+      color: Colors.text.secondary,
       marginBottom: 16,
     },
     section: {
@@ -423,14 +424,14 @@ function createStyles(Colors: any) {
       fontFamily: Typography.bold,
       fontSize: 14,
       fontWeight: '600',
-      color: '#E2E8F0',
+      color: Colors.text.primary,
       marginBottom: 6,
     },
     sectionBody: {
       fontFamily: Typography.regular,
       fontSize: 14,
       lineHeight: 20,
-      color: '#94A3B8',
+      color: Colors.text.secondary,
     },
     metaRow: {
       flexDirection: 'row',
@@ -439,7 +440,7 @@ function createStyles(Colors: any) {
       paddingVertical: 12,
       borderTopWidth: 1,
       borderBottomWidth: 1,
-      borderColor: 'rgba(255, 255, 255, 0.06)',
+      borderColor: Colors.border.subtle,
       marginBottom: 18,
     },
     metaItem: {
@@ -450,7 +451,7 @@ function createStyles(Colors: any) {
     metaText: {
       fontFamily: Typography.regular,
       fontSize: 13,
-      color: '#CBD5E1',
+      color: Colors.text.tertiary,
     },
     chipsRow: {
       flexDirection: 'row',
@@ -458,39 +459,39 @@ function createStyles(Colors: any) {
       gap: 8,
     },
     skillPill: {
-      backgroundColor: '#1E293B',
+      backgroundColor: Colors.background.pillInactive,
       paddingHorizontal: 12,
       paddingVertical: 6,
       borderRadius: 16,
     },
     skillPillText: {
-      color: '#818CF8',
+      color: Colors.text.accent,
       fontSize: 13,
       fontWeight: '500',
     },
     supportCard: {
-      backgroundColor: '#111827',
+      backgroundColor: Colors.background.canvas,
       borderRadius: 12,
       padding: 12,
       marginBottom: 8,
       borderWidth: 1,
-      borderColor: '#1E293B',
+      borderColor: Colors.border.subtle,
     },
     supportType: {
-      color: '#F8FAFC',
+      color: Colors.text.primary,
       fontSize: 14,
       fontWeight: '600',
       marginBottom: 4,
     },
     supportDetail: {
-      color: '#94A3B8',
+      color: Colors.text.secondary,
       fontSize: 13,
       marginTop: 2,
     },
     manageBox: {
-      backgroundColor: '#080B11',
+      backgroundColor: Colors.background.canvas,
       borderWidth: 1,
-      borderColor: '#1E293B',
+      borderColor: Colors.border.subtle,
       borderRadius: 18,
       padding: 16,
       marginTop: 10,
@@ -499,13 +500,13 @@ function createStyles(Colors: any) {
       fontFamily: Typography.bold,
       fontSize: 15,
       fontWeight: '700',
-      color: '#F8FAFC',
+      color: Colors.text.primary,
       marginBottom: 2,
     },
     manageSub: {
       fontFamily: Typography.regular,
       fontSize: 12,
-      color: '#94A3B8',
+      color: Colors.text.tertiary,
       marginBottom: 14,
     },
     statusButtonsRow: {
@@ -519,7 +520,7 @@ function createStyles(Colors: any) {
       paddingVertical: 8,
       borderRadius: 18,
       borderWidth: 1,
-      backgroundColor: 'rgba(255, 255, 255, 0.04)',
+      backgroundColor: Colors.background.pillInactive,
     },
     statusActionText: {
       fontSize: 13,
@@ -539,7 +540,7 @@ function createStyles(Colors: any) {
       fontWeight: '600',
     },
     pdfCard: {
-      backgroundColor: '#080B11',
+      backgroundColor: Colors.background.canvas,
       borderWidth: 1,
       borderColor: 'rgba(239, 68, 68, 0.35)',
       borderRadius: 16,
@@ -577,12 +578,12 @@ function createStyles(Colors: any) {
     pdfName: {
       fontFamily: Typography.medium,
       fontSize: 13,
-      color: '#F8FAFC',
+      color: Colors.text.primary,
     },
     pdfSize: {
       fontFamily: Typography.regular,
       fontSize: 11,
-      color: '#94A3B8',
+      color: Colors.text.tertiary,
       marginTop: 2,
     },
     pdfBadge: {

@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -14,8 +14,9 @@ import {
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 
+import { ColorTokens } from '@/constants/colors';
 import { Typography } from '@/constants/fonts';
-import { AppMessageModal, AppMessageType } from '@/components/ui';
+import { AppMessageModal, AppMessageType, LogoLoader } from '@/components/ui';
 import { useColors } from '@/theme/app-theme';
 import {
   CreateProjectPayload,
@@ -104,7 +105,7 @@ export function CreateProjectWizard({
 }: CreateProjectWizardProps) {
   const isEditing = !!initialProject;
   const Colors = useColors();
-  const styles = createStyles(Colors);
+  const styles = useMemo(() => createStyles(Colors), [Colors]);
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [submitting, setSubmitting] = useState(false);
@@ -160,6 +161,9 @@ export function CreateProjectWizard({
     size?: number;
     uri: string;
   } | null>(initialProject?.pdfDocument || null);
+
+  const [stepLoading, setStepLoading] = useState(false);
+  const [stepLoadingText, setStepLoadingText] = useState('');
 
   const [modalConfig, setModalConfig] = useState<{
     visible: boolean;
@@ -260,11 +264,21 @@ export function CreateProjectWizard({
       showModal('Required Field', 'Please provide a short description', 'warning');
       return;
     }
-    setStep(2);
+    setStepLoadingText('Loading support options...');
+    setStepLoading(true);
+    setTimeout(() => {
+      setStep(2);
+      setStepLoading(false);
+    }, 800);
   };
 
   const handleNextStep2 = () => {
-    setStep(3);
+    setStepLoadingText('Loading project review...');
+    setStepLoading(true);
+    setTimeout(() => {
+      setStep(3);
+      setStepLoading(false);
+    }, 800);
   };
 
   const handlePublish = async () => {
@@ -289,6 +303,7 @@ export function CreateProjectWizard({
               ? `${mentorExpertise.trim()} (${mentorEngagement})`
               : mentorExpertise.trim() || null,
           };
+          
         }
         if (srv === 'COLLEGE_FUNDING') {
           const details = [
@@ -353,7 +368,7 @@ export function CreateProjectWizard({
           }}
           style={styles.backButton}
         >
-          <Ionicons name="arrow-back" size={24} color="#F8FAFC" />
+          <Ionicons name="arrow-back" size={24} color={Colors.text.primary} />
         </Pressable>
         <View style={styles.headerTitles}>
           <Text style={styles.headerTitle}>{isEditing ? 'Edit Project' : 'Create Project'}</Text>
@@ -548,13 +563,13 @@ export function CreateProjectWizard({
                 ]}
               >
                 <View style={styles.dropdownLeft}>
-                  <Ionicons name="time-outline" size={18} color="#A78BFA" />
+                  <Ionicons name="time-outline" size={18} color={Colors.primary.accent} />
                   <Text style={styles.dropdownSelectedText}>{expectedDuration}</Text>
                 </View>
                 <Ionicons
                   name={durationDropdownOpen ? 'chevron-up' : 'chevron-down'}
                   size={18}
-                  color="#94A3B8"
+                  color={Colors.text.secondary}
                 />
               </Pressable>
 
@@ -585,7 +600,7 @@ export function CreateProjectWizard({
                           {dur}
                         </Text>
                         {isSelected && (
-                          <Ionicons name="checkmark-circle" size={18} color="#A78BFA" />
+                          <Ionicons name="checkmark-circle" size={18} color={Colors.primary.accent} />
                         )}
                       </Pressable>
                     );
@@ -595,9 +610,13 @@ export function CreateProjectWizard({
             </View>
 
             {/* Next Button */}
-            <Pressable onPress={handleNextStep1} style={styles.primaryBtn}>
+            <Pressable
+              onPress={handleNextStep1}
+              disabled={stepLoading}
+              style={[styles.primaryBtn, stepLoading && { opacity: 0.8 }]}
+            >
               <Text style={styles.primaryBtnText}>Next</Text>
-              <Ionicons name="arrow-forward" size={18} color="#080B11" />
+              <Ionicons name="arrow-forward" size={18} color={Colors.text.onBrand} />
             </Pressable>
           </View>
         )}
@@ -622,10 +641,10 @@ export function CreateProjectWizard({
                   >
                     <View style={styles.serviceCardTop}>
                       <View style={styles.serviceIconWrap}>
-                        <Ionicons name={srv.icon} size={20} color="#C4B5FD" />
+                        <Ionicons name={srv.icon} size={20} color={Colors.primary.accent} />
                       </View>
                       <View style={[styles.checkbox, isSelected && styles.checkboxSelected]}>
-                        {isSelected && <Ionicons name="checkmark" size={14} color="#FFFFFF" />}
+                        {isSelected && <Ionicons name="checkmark" size={14} color={Colors.text.onBrand} />}
                       </View>
                     </View>
                     <Text style={styles.serviceTitle}>{srv.title}</Text>
@@ -648,7 +667,7 @@ export function CreateProjectWizard({
                   <View style={styles.subServiceCard}>
                     <View style={styles.subServiceHeader}>
                       <View style={styles.subServiceHeaderLeft}>
-                        <Ionicons name="people" size={20} color="#A78BFA" />
+                        <Ionicons name="people" size={20} color={Colors.primary.accent} />
                         <Text style={styles.subServiceTitle}>Hire Students</Text>
                       </View>
                       <Pressable
@@ -656,7 +675,7 @@ export function CreateProjectWizard({
                         hitSlop={8}
                         accessibilityLabel="Remove Hire Students"
                       >
-                        <Ionicons name="close-circle-outline" size={20} color="#94A3B8" />
+                        <Ionicons name="close-circle-outline" size={20} color={Colors.text.secondary} />
                       </Pressable>
                     </View>
 
@@ -666,7 +685,7 @@ export function CreateProjectWizard({
                         value={rolesNeeded}
                         onChangeText={setRolesNeeded}
                         placeholder="e.g. Frontend Developer, UI/UX Designer"
-                        placeholderTextColor="#64748B"
+                        placeholderTextColor={Colors.text.tertiary}
                         style={styles.textInput}
                       />
                     </View>
@@ -688,7 +707,7 @@ export function CreateProjectWizard({
                         <Ionicons
                           name={studentsDropdownOpen ? 'chevron-up' : 'chevron-down'}
                           size={18}
-                          color="#94A3B8"
+                          color={Colors.text.secondary}
                         />
                       </Pressable>
 
@@ -719,7 +738,7 @@ export function CreateProjectWizard({
                                   {count}
                                 </Text>
                                 {isSelected && (
-                                  <Ionicons name="checkmark-circle" size={18} color="#A78BFA" />
+                                  <Ionicons name="checkmark-circle" size={18} color={Colors.primary.accent} />
                                 )}
                               </Pressable>
                             );
@@ -745,7 +764,7 @@ export function CreateProjectWizard({
                         <Ionicons
                           name={commitmentDropdownOpen ? 'chevron-up' : 'chevron-down'}
                           size={18}
-                          color="#94A3B8"
+                          color={Colors.text.secondary}
                         />
                       </Pressable>
 
@@ -776,7 +795,7 @@ export function CreateProjectWizard({
                                   {com}
                                 </Text>
                                 {isSelected && (
-                                  <Ionicons name="checkmark-circle" size={18} color="#A78BFA" />
+                                  <Ionicons name="checkmark-circle" size={18} color={Colors.primary.accent} />
                                 )}
                               </Pressable>
                             );
@@ -793,11 +812,11 @@ export function CreateProjectWizard({
                           onChangeText={setPrefSkillInput}
                           onSubmitEditing={addPrefSkill}
                           placeholder="Add a skill"
-                          placeholderTextColor="#64748B"
+                          placeholderTextColor={Colors.text.tertiary}
                           style={[styles.textInput, styles.skillInputField]}
                         />
                         <Pressable onPress={addPrefSkill} style={styles.addSkillCircleBtn}>
-                          <Ionicons name="add" size={22} color="#CBD5E1" />
+                          <Ionicons name="add" size={22} color={Colors.text.secondary} />
                         </Pressable>
                       </View>
 
@@ -807,7 +826,7 @@ export function CreateProjectWizard({
                             <View key={sk} style={styles.skillTag}>
                               <Text style={styles.skillTagText}>{sk}</Text>
                               <Pressable onPress={() => removePrefSkill(sk)}>
-                                <Ionicons name="close" size={14} color="#CBD5E1" />
+                                <Ionicons name="close" size={14} color={Colors.text.secondary} />
                               </Pressable>
                             </View>
                           ))}
@@ -822,7 +841,7 @@ export function CreateProjectWizard({
                   <View style={styles.subServiceCard}>
                     <View style={styles.subServiceHeader}>
                       <View style={styles.subServiceHeaderLeft}>
-                        <Ionicons name="school" size={20} color="#A78BFA" />
+                        <Ionicons name="school" size={20} color={Colors.primary.accent} />
                         <Text style={styles.subServiceTitle}>Hire a Mentor</Text>
                       </View>
                       <Pressable
@@ -830,7 +849,7 @@ export function CreateProjectWizard({
                         hitSlop={8}
                         accessibilityLabel="Remove Hire Mentor"
                       >
-                        <Ionicons name="close-circle-outline" size={20} color="#94A3B8" />
+                        <Ionicons name="close-circle-outline" size={20} color={Colors.text.secondary} />
                       </Pressable>
                     </View>
 
@@ -840,7 +859,7 @@ export function CreateProjectWizard({
                         value={mentorExpertise}
                         onChangeText={setMentorExpertise}
                         placeholder="e.g. AI / Machine Learning, Cloud Architecture"
-                        placeholderTextColor="#64748B"
+                        placeholderTextColor={Colors.text.tertiary}
                         style={styles.textInput}
                       />
                     </View>
@@ -859,7 +878,7 @@ export function CreateProjectWizard({
                         <Ionicons
                           name={mentorEngagementDropdownOpen ? 'chevron-up' : 'chevron-down'}
                           size={18}
-                          color="#94A3B8"
+                          color={Colors.text.secondary}
                         />
                       </Pressable>
 
@@ -890,7 +909,7 @@ export function CreateProjectWizard({
                                   {eng}
                                 </Text>
                                 {isSelected && (
-                                  <Ionicons name="checkmark-circle" size={18} color="#A78BFA" />
+                                  <Ionicons name="checkmark-circle" size={18} color={Colors.primary.accent} />
                                 )}
                               </Pressable>
                             );
@@ -906,7 +925,7 @@ export function CreateProjectWizard({
                   <View style={styles.subServiceCard}>
                     <View style={styles.subServiceHeader}>
                       <View style={styles.subServiceHeaderLeft}>
-                        <Ionicons name="business" size={20} color="#A78BFA" />
+                        <Ionicons name="business" size={20} color={Colors.primary.accent} />
                         <Text style={styles.subServiceTitle}>College Funding</Text>
                       </View>
                       <Pressable
@@ -952,7 +971,7 @@ export function CreateProjectWizard({
                   <View style={styles.subServiceCard}>
                     <View style={styles.subServiceHeader}>
                       <View style={styles.subServiceHeaderLeft}>
-                        <Ionicons name="wallet" size={20} color="#A78BFA" />
+                        <Ionicons name="wallet" size={20} color={Colors.primary.accent} />
                         <Text style={styles.subServiceTitle}>Crowdfunding</Text>
                       </View>
                       <Pressable
@@ -1000,9 +1019,13 @@ export function CreateProjectWizard({
             )}
 
             {/* Next Button */}
-            <Pressable onPress={handleNextStep2} style={styles.primaryBtn}>
+            <Pressable
+              onPress={handleNextStep2}
+              disabled={stepLoading}
+              style={[styles.primaryBtn, stepLoading && { opacity: 0.8 }]}
+            >
               <Text style={styles.primaryBtnText}>Next</Text>
-              <Ionicons name="arrow-forward" size={18} color="#080B11" />
+              <Ionicons name="arrow-forward" size={18} color={Colors.text.onBrand} />
             </Pressable>
           </View>
         )}
@@ -1106,7 +1129,7 @@ export function CreateProjectWizard({
                       style={styles.pdfActionBtn}
                       accessibilityLabel="Change PDF"
                     >
-                      <Ionicons name="swap-horizontal" size={18} color="#A78BFA" />
+                      <Ionicons name="swap-horizontal" size={18} color={Colors.primary.accent} />
                     </Pressable>
                     <Pressable
                       onPress={() => setPdfFile(null)}
@@ -1124,7 +1147,7 @@ export function CreateProjectWizard({
                   style={styles.uploadPdfCard}
                 >
                   <View style={styles.uploadPdfIconBox}>
-                    <Ionicons name="cloud-upload-outline" size={24} color="#A78BFA" />
+                    <Ionicons name="cloud-upload-outline" size={24} color={Colors.primary.accent} />
                   </View>
                   <View style={styles.uploadPdfCopy}>
                     <Text style={styles.uploadPdfTitle}>Upload PDF Document</Text>
@@ -1176,17 +1199,28 @@ export function CreateProjectWizard({
               disabled={submitting}
               style={[styles.primaryBtn, submitting && { opacity: 0.7 }]}
             >
-              {submitting ? (
-                <ActivityIndicator color="#080B11" />
-              ) : (
-                <Text style={styles.primaryBtnText}>
-                  {isEditing ? 'Save Changes' : 'Publish Project 🚀'}
-                </Text>
-              )}
+              <Text style={styles.primaryBtnText}>
+                {isEditing ? 'Save Changes' : 'Publish Project 🚀'}
+              </Text>
             </Pressable>
           </View>
         )}
       </ScrollView>
+
+      {/* Whole-page centered Logo Loader for Stepper Transitions & Publishing */}
+      {(stepLoading || submitting) && (
+        <LogoLoader
+          overlay
+          size={70}
+          text={
+            submitting
+              ? isEditing
+                ? 'Saving changes...'
+                : 'Publishing project...'
+              : stepLoadingText || 'Loading next step...'
+          }
+        />
+      )}
 
       {/* Unified App Message Modal */}
       <AppMessageModal
@@ -1203,11 +1237,11 @@ export function CreateProjectWizard({
   );
 }
 
-function createStyles(Colors: any) {
+function createStyles(Colors: ColorTokens) {
   return StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: '#080B11',
+      backgroundColor: Colors.background.canvas,
     },
     header: {
       flexDirection: 'row',
@@ -1231,12 +1265,12 @@ function createStyles(Colors: any) {
       fontFamily: Typography.bold,
       fontSize: 22,
       fontWeight: '700',
-      color: '#F8FAFC',
+      color: Colors.text.primary,
     },
     headerSubtitle: {
       fontFamily: Typography.regular,
       fontSize: 13,
-      color: '#94A3B8',
+      color: Colors.text.secondary,
       marginTop: 2,
     },
     stepperContainer: {
@@ -1246,7 +1280,7 @@ function createStyles(Colors: any) {
       paddingHorizontal: 24,
       paddingVertical: 14,
       borderBottomWidth: 1,
-      borderBottomColor: 'rgba(255, 255, 255, 0.06)',
+      borderBottomColor: Colors.border.subtle,
     },
     stepItem: {
       alignItems: 'center',
@@ -1255,38 +1289,38 @@ function createStyles(Colors: any) {
       width: 32,
       height: 32,
       borderRadius: 16,
-      backgroundColor: '#1E293B',
+      backgroundColor: Colors.background.pillInactive,
       justifyContent: 'center',
       alignItems: 'center',
       marginBottom: 4,
     },
     stepCircleActive: {
-      backgroundColor: '#8B5CF6',
+      backgroundColor: Colors.primary.accent,
     },
     stepNumber: {
       fontFamily: Typography.bold,
       fontSize: 13,
       fontWeight: '700',
-      color: '#FFFFFF',
+      color: Colors.text.onBrand,
     },
     stepLabel: {
       fontFamily: Typography.regular,
       fontSize: 11,
-      color: '#64748B',
+      color: Colors.text.tertiary,
     },
     stepLabelActive: {
-      color: '#A78BFA',
+      color: Colors.primary.accent,
       fontWeight: '600',
     },
     stepLine: {
       flex: 1,
       height: 2,
-      backgroundColor: '#1E293B',
+      backgroundColor: Colors.border.subtle,
       marginHorizontal: 8,
       marginBottom: 16,
     },
     stepLineActive: {
-      backgroundColor: '#8B5CF6',
+      backgroundColor: Colors.primary.accent,
     },
     scrollContent: {
       paddingHorizontal: 20,
@@ -1299,13 +1333,13 @@ function createStyles(Colors: any) {
       fontFamily: Typography.bold,
       fontSize: 20,
       fontWeight: '700',
-      color: '#F8FAFC',
+      color: Colors.text.primary,
       marginBottom: 4,
     },
     sectionSubheading: {
       fontFamily: Typography.regular,
       fontSize: 14,
-      color: '#94A3B8',
+      color: Colors.text.secondary,
       marginBottom: 20,
     },
     fieldGroup: {
@@ -1315,17 +1349,17 @@ function createStyles(Colors: any) {
       fontFamily: Typography.medium,
       fontSize: 13,
       fontWeight: '600',
-      color: '#E2E8F0',
+      color: Colors.text.primary,
       marginBottom: 8,
     },
     textInput: {
-      backgroundColor: '#0F172A',
+      backgroundColor: Colors.background.input,
       borderWidth: 1,
-      borderColor: '#1E293B',
+      borderColor: Colors.border.card,
       borderRadius: 12,
       paddingHorizontal: 14,
       paddingVertical: 12,
-      color: '#F8FAFC',
+      color: Colors.text.primary,
       fontFamily: Typography.regular,
       fontSize: 14,
     },
@@ -1340,7 +1374,7 @@ function createStyles(Colors: any) {
     counter: {
       fontFamily: Typography.regular,
       fontSize: 11,
-      color: '#64748B',
+      color: Colors.text.tertiary,
       marginTop: 4,
     },
     chipsRow: {
@@ -1352,21 +1386,21 @@ function createStyles(Colors: any) {
       paddingHorizontal: 14,
       paddingVertical: 8,
       borderRadius: 20,
-      backgroundColor: '#111827',
+      backgroundColor: Colors.background.surface,
       borderWidth: 1,
-      borderColor: '#1E293B',
+      borderColor: Colors.border.card,
     },
     chipActive: {
-      backgroundColor: 'rgba(13, 148, 136, 0.25)',
-      borderColor: '#14B8A6',
+      backgroundColor: Colors.primary.glow,
+      borderColor: Colors.primary.light,
     },
     chipText: {
       fontFamily: Typography.medium,
       fontSize: 13,
-      color: '#94A3B8',
+      color: Colors.text.secondary,
     },
     chipTextActive: {
-      color: '#2DD4BF',
+      color: Colors.primary.accent,
       fontWeight: '600',
     },
     skillInputRow: {
@@ -1381,7 +1415,7 @@ function createStyles(Colors: any) {
       width: 44,
       height: 44,
       borderRadius: 12,
-      backgroundColor: '#1E293B',
+      backgroundColor: Colors.background.pillInactive,
       justifyContent: 'center',
       alignItems: 'center',
     },
@@ -1395,7 +1429,7 @@ function createStyles(Colors: any) {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 6,
-      backgroundColor: '#1E293B',
+      backgroundColor: Colors.background.pillInactive,
       paddingHorizontal: 10,
       paddingVertical: 5,
       borderRadius: 14,
@@ -1403,7 +1437,7 @@ function createStyles(Colors: any) {
     skillTagText: {
       fontFamily: Typography.regular,
       fontSize: 12,
-      color: '#E2E8F0',
+      color: Colors.text.primary,
     },
     serviceGrid: {
       flexDirection: 'row',
@@ -1413,16 +1447,16 @@ function createStyles(Colors: any) {
     },
     serviceCard: {
       width: '48%',
-      backgroundColor: '#0F172A',
+      backgroundColor: Colors.background.surface,
       borderWidth: 1,
-      borderColor: '#1E293B',
+      borderColor: Colors.border.card,
       borderRadius: 16,
       padding: 14,
       justifyContent: 'space-between',
     },
     serviceCardSelected: {
-      borderColor: '#8B5CF6',
-      backgroundColor: 'rgba(139, 92, 246, 0.12)',
+      borderColor: Colors.primary.accent,
+      backgroundColor: Colors.primary.glow,
     },
     serviceCardTop: {
       flexDirection: 'row',
@@ -1434,7 +1468,7 @@ function createStyles(Colors: any) {
       width: 36,
       height: 36,
       borderRadius: 10,
-      backgroundColor: 'rgba(139, 92, 246, 0.2)',
+      backgroundColor: Colors.primary.glow,
       justifyContent: 'center',
       alignItems: 'center',
     },
@@ -1443,25 +1477,25 @@ function createStyles(Colors: any) {
       height: 20,
       borderRadius: 4,
       borderWidth: 1.5,
-      borderColor: '#64748B',
+      borderColor: Colors.border.card,
       justifyContent: 'center',
       alignItems: 'center',
     },
     checkboxSelected: {
-      borderColor: '#8B5CF6',
-      backgroundColor: '#8B5CF6',
+      borderColor: Colors.primary.accent,
+      backgroundColor: Colors.primary.accent,
     },
     serviceTitle: {
       fontFamily: Typography.bold,
       fontSize: 15,
       fontWeight: '700',
-      color: '#F8FAFC',
+      color: Colors.text.primary,
       marginBottom: 4,
     },
     serviceDesc: {
       fontFamily: Typography.regular,
       fontSize: 12,
-      color: '#94A3B8',
+      color: Colors.text.secondary,
       lineHeight: 16,
     },
     additionalDetailsSection: {
@@ -1471,19 +1505,19 @@ function createStyles(Colors: any) {
       fontFamily: Typography.bold,
       fontSize: 18,
       fontWeight: '700',
-      color: '#F8FAFC',
+      color: Colors.text.primary,
       marginBottom: 2,
     },
     additionalSub: {
       fontFamily: Typography.regular,
       fontSize: 12,
-      color: '#94A3B8',
+      color: Colors.text.secondary,
       marginBottom: 16,
     },
     subServiceCard: {
-      backgroundColor: '#0F172A',
+      backgroundColor: Colors.background.surface,
       borderWidth: 1,
-      borderColor: '#1E293B',
+      borderColor: Colors.border.card,
       borderRadius: 16,
       padding: 16,
       marginBottom: 16,
@@ -1503,23 +1537,23 @@ function createStyles(Colors: any) {
       fontFamily: Typography.bold,
       fontSize: 16,
       fontWeight: '700',
-      color: '#F8FAFC',
+      color: Colors.text.primary,
     },
     crowdfundNotice: {
       fontFamily: Typography.regular,
       fontSize: 12,
-      color: '#94A3B8',
+      color: Colors.text.secondary,
       marginBottom: 14,
       lineHeight: 16,
     },
     targetAmountInput: {
-      borderColor: '#8B5CF6',
+      borderColor: Colors.primary.accent,
     },
     addSkillCircleBtn: {
       width: 44,
       height: 44,
       borderRadius: 22,
-      backgroundColor: '#1E293B',
+      backgroundColor: Colors.background.pillInactive,
       justifyContent: 'center',
       alignItems: 'center',
     },
@@ -1527,7 +1561,7 @@ function createStyles(Colors: any) {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: '#A78BFA',
+      backgroundColor: Colors.primary.accent,
       borderRadius: 24,
       paddingVertical: 14,
       gap: 8,
@@ -1537,19 +1571,19 @@ function createStyles(Colors: any) {
       fontFamily: Typography.bold,
       fontSize: 16,
       fontWeight: '700',
-      color: '#080B11',
+      color: Colors.text.onBrand,
     },
     previewCard: {
-      backgroundColor: '#0F172A',
+      backgroundColor: Colors.background.surface,
       borderRadius: 20,
       borderWidth: 1,
-      borderColor: '#1E293B',
+      borderColor: Colors.border.card,
       overflow: 'hidden',
       marginBottom: 20,
     },
     previewGradientHeader: {
       height: 120,
-      backgroundColor: '#1E1B4B',
+      backgroundColor: Colors.primary.main,
       justifyContent: 'center',
       alignItems: 'center',
     },
@@ -1573,13 +1607,13 @@ function createStyles(Colors: any) {
       fontFamily: Typography.bold,
       fontSize: 18,
       fontWeight: '700',
-      color: '#F8FAFC',
+      color: Colors.text.primary,
       marginBottom: 4,
     },
     previewDesc: {
       fontFamily: Typography.regular,
       fontSize: 13,
-      color: '#94A3B8',
+      color: Colors.text.secondary,
       marginBottom: 12,
     },
     previewMetaRow: {
@@ -1596,7 +1630,7 @@ function createStyles(Colors: any) {
     previewMetaText: {
       fontFamily: Typography.regular,
       fontSize: 12,
-      color: '#94A3B8',
+      color: Colors.text.tertiary,
     },
     previewSkillsRow: {
       flexDirection: 'row',
@@ -1604,14 +1638,14 @@ function createStyles(Colors: any) {
       gap: 6,
     },
     previewSkillPill: {
-      backgroundColor: '#1E293B',
+      backgroundColor: Colors.background.pillInactive,
       paddingHorizontal: 8,
       paddingVertical: 3,
       borderRadius: 10,
     },
     previewSkillText: {
       fontSize: 11,
-      color: '#CBD5E1',
+      color: Colors.text.secondary,
     },
     reviewSection: {
       marginBottom: 20,
@@ -1620,13 +1654,13 @@ function createStyles(Colors: any) {
       fontFamily: Typography.bold,
       fontSize: 15,
       fontWeight: '700',
-      color: '#F8FAFC',
+      color: Colors.text.primary,
       marginBottom: 4,
     },
     reviewSectionSub: {
       fontFamily: Typography.regular,
       fontSize: 12,
-      color: '#94A3B8',
+      color: Colors.text.secondary,
       marginBottom: 10,
     },
     supportChipsRow: {
@@ -1638,15 +1672,15 @@ function createStyles(Colors: any) {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 6,
-      backgroundColor: '#111827',
+      backgroundColor: Colors.background.surface,
       borderWidth: 1,
-      borderColor: '#1E293B',
+      borderColor: Colors.border.card,
       borderRadius: 16,
       paddingHorizontal: 12,
       paddingVertical: 6,
     },
     supportBadgeText: {
-      color: '#E2E8F0',
+      color: Colors.text.primary,
       fontSize: 12,
       fontWeight: '500',
     },
@@ -1670,9 +1704,9 @@ function createStyles(Colors: any) {
       fontWeight: '600',
     },
     uploadPdfCard: {
-      backgroundColor: '#111827',
+      backgroundColor: Colors.background.surface,
       borderWidth: 1.5,
-      borderColor: '#334155',
+      borderColor: Colors.border.card,
       borderStyle: 'dashed',
       borderRadius: 16,
       paddingHorizontal: 16,
@@ -1685,7 +1719,7 @@ function createStyles(Colors: any) {
       width: 44,
       height: 44,
       borderRadius: 12,
-      backgroundColor: 'rgba(167, 139, 250, 0.12)',
+      backgroundColor: Colors.primary.glow,
       justifyContent: 'center',
       alignItems: 'center',
     },
@@ -1695,16 +1729,16 @@ function createStyles(Colors: any) {
     uploadPdfTitle: {
       fontFamily: Typography.medium,
       fontSize: 14,
-      color: '#F8FAFC',
+      color: Colors.text.primary,
     },
     uploadPdfHint: {
       fontFamily: Typography.regular,
       fontSize: 11,
-      color: '#64748B',
+      color: Colors.text.tertiary,
       marginTop: 2,
     },
     pdfCard: {
-      backgroundColor: '#111827',
+      backgroundColor: Colors.background.surface,
       borderWidth: 1,
       borderColor: 'rgba(239, 68, 68, 0.35)',
       borderRadius: 16,
@@ -1742,12 +1776,12 @@ function createStyles(Colors: any) {
     pdfName: {
       fontFamily: Typography.medium,
       fontSize: 13,
-      color: '#F8FAFC',
+      color: Colors.text.primary,
     },
     pdfSize: {
       fontFamily: Typography.regular,
       fontSize: 11,
-      color: '#94A3B8',
+      color: Colors.text.tertiary,
       marginTop: 2,
     },
     pdfActions: {
@@ -1759,7 +1793,7 @@ function createStyles(Colors: any) {
       width: 34,
       height: 34,
       borderRadius: 8,
-      backgroundColor: '#1E293B',
+      backgroundColor: Colors.background.pillInactive,
       justifyContent: 'center',
       alignItems: 'center',
     },
@@ -1777,18 +1811,18 @@ function createStyles(Colors: any) {
       height: 20,
       borderRadius: 10,
       borderWidth: 2,
-      borderColor: '#64748B',
+      borderColor: Colors.border.card,
       justifyContent: 'center',
       alignItems: 'center',
     },
     radioOuterSelected: {
-      borderColor: '#8B5CF6',
+      borderColor: Colors.primary.accent,
     },
     radioInner: {
       width: 10,
       height: 10,
       borderRadius: 5,
-      backgroundColor: '#8B5CF6',
+      backgroundColor: Colors.primary.accent,
     },
     visibilityCopy: {
       flex: 1,
@@ -1797,17 +1831,17 @@ function createStyles(Colors: any) {
       fontFamily: Typography.medium,
       fontSize: 14,
       fontWeight: '600',
-      color: '#F8FAFC',
+      color: Colors.text.primary,
     },
     visibilitySub: {
       fontFamily: Typography.regular,
       fontSize: 12,
-      color: '#64748B',
+      color: Colors.text.secondary,
     },
     dropdownTrigger: {
-      backgroundColor: '#0F172A',
+      backgroundColor: Colors.background.input,
       borderWidth: 1,
-      borderColor: '#1E293B',
+      borderColor: Colors.border.card,
       borderRadius: 12,
       paddingHorizontal: 14,
       paddingVertical: 14,
@@ -1816,7 +1850,7 @@ function createStyles(Colors: any) {
       justifyContent: 'space-between',
     },
     dropdownTriggerOpen: {
-      borderColor: '#8B5CF6',
+      borderColor: Colors.primary.accent,
       borderBottomLeftRadius: 4,
       borderBottomRightRadius: 4,
     },
@@ -1828,12 +1862,12 @@ function createStyles(Colors: any) {
     dropdownSelectedText: {
       fontFamily: Typography.medium,
       fontSize: 14,
-      color: '#F8FAFC',
+      color: Colors.text.primary,
     },
     dropdownMenu: {
-      backgroundColor: '#111827',
+      backgroundColor: Colors.background.surface,
       borderWidth: 1,
-      borderColor: '#8B5CF6',
+      borderColor: Colors.primary.accent,
       borderTopWidth: 0,
       borderBottomLeftRadius: 12,
       borderBottomRightRadius: 12,
@@ -1848,20 +1882,20 @@ function createStyles(Colors: any) {
       paddingVertical: 12,
     },
     dropdownItemSelected: {
-      backgroundColor: 'rgba(139, 92, 246, 0.16)',
+      backgroundColor: Colors.primary.glow,
     },
     dropdownItemBorder: {
       borderBottomWidth: 1,
-      borderBottomColor: '#1E293B',
+      borderBottomColor: Colors.border.subtle,
     },
     dropdownItemText: {
       fontFamily: Typography.regular,
       fontSize: 14,
-      color: '#CBD5E1',
+      color: Colors.text.secondary,
     },
     dropdownItemTextSelected: {
       fontFamily: Typography.medium,
-      color: '#C4B5FD',
+      color: Colors.primary.accent,
       fontWeight: '600',
     },
   });

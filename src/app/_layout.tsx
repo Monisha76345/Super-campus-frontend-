@@ -13,6 +13,7 @@ import { useEffect, useMemo } from 'react';
 
 import { AuthSessionProvider } from '@/features/auth';
 import { AppThemeProvider, useAppTheme } from '@/theme/app-theme';
+import { AlertModalProvider } from '@/components/ui';
 
 SplashScreen.hideAsync().catch(() => {});
 
@@ -33,7 +34,9 @@ export default function RootLayout() {
   return (
     <AuthSessionProvider>
       <AppThemeProvider>
-        <RootNavigator />
+        <AlertModalProvider>
+          <RootNavigator />
+        </AlertModalProvider>
       </AppThemeProvider>
     </AuthSessionProvider>
   );

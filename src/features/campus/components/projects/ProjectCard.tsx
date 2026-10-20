@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import React, { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { ColorTokens } from '@/constants/colors';
 import { Typography } from '@/constants/fonts';
 import { useColors } from '@/theme/app-theme';
 import { Project, ProjectStatus } from '../../project-types';
@@ -86,7 +87,7 @@ export function ProjectCard({ project, onPress, onEdit }: ProjectCardProps) {
             }}
             style={({ pressed }) => [styles.editBtn, pressed && styles.editBtnPressed]}
           >
-            <Ionicons name="pencil" size={14} color="#A78BFA" />
+            <Ionicons name="pencil" size={14} color={Colors.primary.accent} />
           </Pressable>
         )}
       </View>
@@ -118,15 +119,15 @@ export function ProjectCard({ project, onPress, onEdit }: ProjectCardProps) {
   );
 }
 
-function createStyles(Colors: any) {
+function createStyles(Colors: ColorTokens) {
   return StyleSheet.create({
     card: {
-      backgroundColor: '#111625',
+      backgroundColor: Colors.background.surface,
       borderRadius: 20,
       padding: 18,
       marginBottom: 14,
       borderWidth: 1,
-      borderColor: 'rgba(255, 255, 255, 0.08)',
+      borderColor: Colors.border.card,
     },
     pressed: {
       opacity: 0.88,
@@ -147,9 +148,9 @@ function createStyles(Colors: any) {
       width: 30,
       height: 30,
       borderRadius: 15,
-      backgroundColor: 'rgba(167, 139, 250, 0.12)',
+      backgroundColor: Colors.background.pillInactive,
       borderWidth: 1,
-      borderColor: 'rgba(167, 139, 250, 0.25)',
+      borderColor: Colors.border.subtle,
       justifyContent: 'center',
       alignItems: 'center',
     },
@@ -172,25 +173,25 @@ function createStyles(Colors: any) {
       paddingHorizontal: 10,
       paddingVertical: 4,
       borderRadius: 14,
-      backgroundColor: 'rgba(255, 255, 255, 0.06)',
+      backgroundColor: Colors.background.pillInactive,
     },
     categoryText: {
       fontFamily: Typography.medium,
       fontSize: 12,
-      color: '#CBD5E1',
+      color: Colors.text.secondary,
     },
     title: {
       fontFamily: Typography.bold,
       fontSize: 20,
       fontWeight: '700',
-      color: '#F8FAFC',
+      color: Colors.text.primary,
       marginBottom: 6,
     },
     description: {
       fontFamily: Typography.regular,
       fontSize: 14,
       lineHeight: 20,
-      color: '#94A3B8',
+      color: Colors.text.secondary,
       marginBottom: 14,
     },
     footerRow: {
@@ -206,7 +207,7 @@ function createStyles(Colors: any) {
       fontFamily: Typography.medium,
       fontSize: 13,
       fontWeight: '500',
-      color: '#E2E8F0',
+      color: Colors.text.tertiary,
     },
     skillSnippet: {
       marginLeft: 'auto',
@@ -215,7 +216,7 @@ function createStyles(Colors: any) {
     skillSnippetText: {
       fontFamily: Typography.regular,
       fontSize: 12,
-      color: '#818CF8',
+      color: Colors.text.accent,
     },
   });
 }

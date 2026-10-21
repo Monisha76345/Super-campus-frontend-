@@ -30,7 +30,11 @@ export function HomeScreenContent() {
   const [activeTab] = useState<TabKey>('home');
   const [showCsvModal, setShowCsvModal] = useState(false);
 
-  const isSuperAdmin = user?.role === 'superadmin';
+  const roleNormalized = (user?.role || '').toLowerCase();
+  const isSuperAdmin =
+    roleNormalized === 'superadmin' ||
+    roleNormalized === 'admin' ||
+    roleNormalized === 'campus_admin';
 
   const fetchProfile = useCallback(async () => {
     if (!user?.token || !user?.tenantId) return;
@@ -103,11 +107,15 @@ export function HomeScreenContent() {
             <View style={styles.superAdminHeaderRow}>
               <View style={styles.superAdminPill}>
                 <Ionicons name="shield-checkmark" size={13} color="#38BDF8" />
-                <Text style={styles.superAdminPillText}>SUPER ADMIN PRIVILEGES</Text>
+                <Text style={styles.superAdminPillText}>
+                  {roleNormalized === 'superadmin' ? 'SUPER ADMIN PRIVILEGES' : 'CAMPUS ADMIN PRIVILEGES'}
+                </Text>
               </View>
               <View style={styles.multiTenantTag}>
                 <Ionicons name="globe-outline" size={12} color="#A78BFA" />
-                <Text style={styles.multiTenantTagText}>Multi-Tenant Root</Text>
+                <Text style={styles.multiTenantTagText}>
+                  {roleNormalized === 'superadmin' ? 'Multi-Tenant Root' : 'Campus Console'}
+                </Text>
               </View>
             </View>
 
@@ -207,19 +215,25 @@ function createStyles(Colors: ColorTokens) {
   scrollContent: {
     paddingHorizontal: 18,
     paddingTop: 8,
-    paddingBottom: 118, // Generous padding to float smoothly above the capsule bar
+    paddingBottom: 160, // Ample clearance so the refresh button and cards are never cut off by the bottom bar
   },
   refreshButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
+    marginTop: 6,
     paddingVertical: 14,
-    marginBottom: 16,
-    borderRadius: 16,
+    marginBottom: 20,
+    borderRadius: 18,
     backgroundColor: Colors.background.surface,
-    borderWidth: 1,
+    borderWidth: 1.2,
     borderColor: Colors.border.subtle,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 2,
   },
   refreshButtonText: {
     fontFamily: Typography.semiBold,

@@ -5,196 +5,147 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ColorTokens } from '@/constants/colors';
 import { Typography } from '@/constants/fonts';
-import { useColors } from '@/theme/app-theme';
+import { useAppTheme } from '@/theme/app-theme';
 
 export function StatusCardsGrid() {
-  const Colors = useColors();
-  const styles = useMemo(() => createStyles(Colors), [Colors]);
+  const { colors: Colors, scheme } = useAppTheme();
+  const isDark = scheme === 'dark';
+  const styles = useMemo(() => createStyles(Colors, isDark), [Colors, isDark]);
   const router = useRouter();
 
   return (
     <View style={styles.gridContainer}>
-      {/* Smart Widget 1: Upcoming Sports Booking */}
+      {/* Upcoming booking */}
       <Pressable
         onPress={() => router.push('/sports')}
-        style={({ pressed }) => [styles.widgetCard, styles.sportsCard, pressed && styles.pressed]}>
-        <View style={styles.topStatusRow}>
-          <View style={styles.sportsIconBox}>
-            <Ionicons name="tennisball-outline" size={18} color="#38BDF8" />
-          </View>
-          <View style={styles.slotPill}>
-            <Text style={styles.slotPillText}>SPORTS</Text>
-          </View>
+        style={({ pressed }) => [styles.widgetCard, styles.bookingCard, pressed && styles.pressed]}
+        accessibilityRole="button"
+      >
+        <View
+          style={[
+            styles.iconBox,
+            {
+              backgroundColor: isDark ? 'rgba(6, 182, 212, 0.14)' : '#EEF2FF',
+              borderColor: isDark ? 'rgba(6, 182, 212, 0.35)' : 'rgba(99, 102, 241, 0.2)',
+            },
+          ]}
+        >
+          <Ionicons
+            name="search"
+            size={18}
+            color={isDark ? '#06B6D4' : '#4338CA'}
+          />
         </View>
 
-        <View style={styles.middleContent}>
-          <Text style={styles.widgetTitle}>Upcoming booking</Text>
-          <Text style={styles.widgetSub}>View your Sports bookings.</Text>
+        <Text style={styles.widgetTitle}>Upcoming booking</Text>
+        <View style={styles.statusRow}>
+          <View style={[styles.statusDot, { backgroundColor: isDark ? '#38BDF8' : '#2563EB' }]} />
+          <Text style={styles.statusAccent}>Coming soon</Text>
         </View>
-
-        <View style={styles.bottomActionRow}>
-          <Text style={styles.sportsActionText}>Open Sports</Text>
-          <Ionicons name="arrow-forward" size={13} color="#38BDF8" />
-        </View>
+        <Text style={styles.widgetSub}>View your Sports bookings.</Text>
       </Pressable>
 
-      {/* Smart Widget 2: Outpass Status */}
+      {/* Outpass status */}
       <Pressable
         onPress={() => router.push('/outpass')}
-        style={({ pressed }) => [styles.widgetCard, styles.passCard, pressed && styles.pressed]}>
-        <View style={styles.topStatusRow}>
-          <View style={styles.passIconBox}>
-            <Ionicons name="qr-code-outline" size={18} color="#C084FC" />
-          </View>
-          <View style={styles.activePill}>
-            <View style={styles.activePillDot} />
-            <Text style={styles.activePillText}>GATE PASS</Text>
-          </View>
+        style={({ pressed }) => [styles.widgetCard, styles.passCard, pressed && styles.pressed]}
+        accessibilityRole="button"
+      >
+        <View
+          style={[
+            styles.iconBox,
+            {
+              backgroundColor: isDark ? 'rgba(139, 92, 246, 0.14)' : '#EEF2FF',
+              borderColor: isDark ? 'rgba(139, 92, 246, 0.35)' : 'rgba(99, 102, 241, 0.2)',
+            },
+          ]}
+        >
+          <Ionicons
+            name="person"
+            size={18}
+            color={isDark ? '#A78BFA' : '#4338CA'}
+          />
         </View>
 
-        <View style={styles.middleContent}>
-          <Text style={styles.widgetTitle}>Outpass status</Text>
-          <Text style={styles.widgetSub}>Open your outpass requests.</Text>
+        <Text style={styles.widgetTitle}>Outpass status</Text>
+        <View style={styles.statusRow}>
+          <View style={[styles.statusDot, { backgroundColor: isDark ? '#38BDF8' : '#2563EB' }]} />
+          <Text style={styles.statusAccent}>Coming soon</Text>
         </View>
-
-        <View style={styles.bottomActionRow}>
-          <Text style={styles.passActionText}>View Status</Text>
-          <Ionicons name="arrow-forward" size={13} color="#C084FC" />
-        </View>
+        <Text style={styles.widgetSub}>Open your outpass requests.</Text>
       </Pressable>
     </View>
   );
 }
 
-function createStyles(Colors: ColorTokens) {
+function createStyles(Colors: ColorTokens, isDark: boolean) {
   return StyleSheet.create({
     gridContainer: {
       flexDirection: 'row',
-      gap: 12,
-      marginBottom: 24,
+      gap: 10,
+      marginBottom: 20,
     },
     widgetCard: {
       flex: 1,
-      borderRadius: 22,
+      backgroundColor: isDark ? '#101626' : Colors.background.surface,
+      borderRadius: 20,
       borderWidth: 1.2,
-      padding: 16,
-      justifyContent: 'space-between',
-      minHeight: 142,
-      shadowOffset: { width: 0, height: 6 },
-      shadowOpacity: 0.25,
-      shadowRadius: 10,
-      elevation: 4,
+      borderColor: isDark ? 'rgba(99, 102, 241, 0.18)' : '#E0E7FF',
+      padding: 15,
+      shadowColor: isDark ? '#000' : '#4338CA',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: isDark ? 0.3 : 0.06,
+      shadowRadius: 8,
+      elevation: 3,
     },
-    sportsCard: {
-      backgroundColor: Colors.background.surface,
-      borderColor: 'rgba(56, 189, 248, 0.35)',
-      shadowColor: '#0284C7',
+    bookingCard: {
+      borderColor: isDark ? 'rgba(6, 182, 212, 0.22)' : '#E0E7FF',
     },
     passCard: {
-      backgroundColor: Colors.background.surface,
-      borderColor: 'rgba(192, 132, 252, 0.35)',
-      shadowColor: '#7C3AED',
+      borderColor: isDark ? 'rgba(139, 92, 246, 0.22)' : '#E0E7FF',
     },
-    topStatusRow: {
-      flexDirection: 'row',
+    iconBox: {
+      width: 38,
+      height: 38,
+      borderRadius: 12,
+      borderWidth: 1,
       alignItems: 'center',
-      justifyContent: 'space-between',
+      justifyContent: 'center',
       marginBottom: 12,
-    },
-    sportsIconBox: {
-      width: 36,
-      height: 36,
-      borderRadius: 12,
-      backgroundColor: 'rgba(14, 165, 233, 0.2)',
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    passIconBox: {
-      width: 36,
-      height: 36,
-      borderRadius: 12,
-      backgroundColor: 'rgba(139, 92, 246, 0.2)',
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    slotPill: {
-      backgroundColor: 'rgba(56, 189, 248, 0.15)',
-      borderWidth: 1,
-      borderColor: 'rgba(56, 189, 248, 0.35)',
-      paddingHorizontal: 7,
-      paddingVertical: 3,
-      borderRadius: 10,
-    },
-    slotPillText: {
-      fontFamily: Typography.bold,
-      fontSize: 9,
-      color: '#38BDF8',
-      fontWeight: '800',
-      letterSpacing: 0.5,
-    },
-    activePill: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 4,
-      backgroundColor: 'rgba(192, 132, 252, 0.15)',
-      borderWidth: 1,
-      borderColor: 'rgba(192, 132, 252, 0.35)',
-      paddingHorizontal: 7,
-      paddingVertical: 3,
-      borderRadius: 10,
-    },
-    activePillDot: {
-      width: 5,
-      height: 5,
-      borderRadius: 2.5,
-      backgroundColor: '#C084FC',
-    },
-    activePillText: {
-      fontFamily: Typography.bold,
-      fontSize: 9,
-      color: '#C084FC',
-      fontWeight: '800',
-      letterSpacing: 0.5,
-    },
-    middleContent: {
-      marginBottom: 10,
     },
     widgetTitle: {
       fontFamily: Typography.bold,
       fontSize: 14,
       fontWeight: '700',
       color: Colors.text.primary,
-      marginBottom: 3,
-      letterSpacing: -0.2,
+      marginBottom: 4,
     },
-    widgetSub: {
-      fontFamily: Typography.medium,
-      fontSize: 11,
-      color: Colors.text.secondary,
-    },
-    bottomActionRow: {
+    statusRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 4,
-      paddingTop: 8,
-      borderTopWidth: 1,
-      borderTopColor: Colors.border.subtle,
+      gap: 5,
+      marginBottom: 5,
     },
-    sportsActionText: {
-      fontFamily: Typography.bold,
-      fontSize: 11,
-      color: '#38BDF8',
-      fontWeight: '700',
+    statusDot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
     },
-    passActionText: {
-      fontFamily: Typography.bold,
+    statusAccent: {
+      fontFamily: Typography.semiBold,
       fontSize: 11,
-      color: '#C084FC',
-      fontWeight: '700',
+      fontWeight: '600',
+      color: isDark ? '#38BDF8' : '#2563EB',
+    },
+    widgetSub: {
+      fontFamily: Typography.regular,
+      fontSize: 11,
+      lineHeight: 16,
+      color: Colors.text.secondary,
     },
     pressed: {
       opacity: 0.85,
-      transform: [{ scale: 0.97 }],
+      transform: [{ scale: 0.98 }],
     },
   });
 }

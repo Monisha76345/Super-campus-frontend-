@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -17,14 +18,16 @@ import { Typography } from '@/constants/fonts';
 import { useAuthSession } from '@/features/auth';
 import { HomeBottomTabs } from '@/features/home/components/HomeBottomTabs';
 import { openTab } from '@/features/campus/navigation';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAppTheme } from '@/theme/app-theme';
+import { profilePhotoUri } from '@/features/profile/api/profile-api';
 import { fetchThreadsApi, searchUsersApi, startDirectChatApi } from './chat-api';
 import { ChatDetailScreen } from './ChatDetailScreen';
 import { ChatThread, ParticipantSummary, SearchUser } from './types';
 
 export function InboxScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ recipientId?: string; recipientName?: string }>();
   const { scheme, colors: Colors } = useAppTheme();
   const isDark = scheme === 'dark';
   const styles = useMemo(() => createStyles(Colors, isDark), [Colors, isDark]);
@@ -39,6 +42,30 @@ export function InboxScreen() {
     id: string;
     recipient: ParticipantSummary;
   } | null>(null);
+
+  // Auto-open chat if navigated with recipientId
+  useEffect(() => {
+    if (!token || !tenantId || !params.recipientId) return;
+    const recipientId = params.recipientId;
+    const recipientName = params.recipientName || 'Member';
+
+    (async () => {
+      try {
+        const thread = await startDirectChatApi(token, tenantId, recipientId);
+        setActiveThread({
+          id: thread.id,
+          recipient: thread.recipient || {
+            userId: recipientId,
+            fullName: recipientName,
+            initials: recipientName.slice(0, 2).toUpperCase(),
+            role: 'Student',
+          },
+        });
+      } catch (err) {
+        console.warn('Failed to auto-open direct chat thread:', err);
+      }
+    })();
+  }, [params.recipientId, params.recipientName, token, tenantId]);
 
   // Thread list state
   const [threads, setThreads] = useState<ChatThread[]>([]);
@@ -98,6 +125,10 @@ export function InboxScreen() {
     return () => clearTimeout(delayDebounce);
   }, [searchQuery, token, tenantId]);
 
+  const activeThreads = useMemo(() => {
+    return threads.filter((t) => t.lastMessageText && t.lastMessageText.trim().length > 0);
+  }, [threads]);
+
   const handleStartChatWithUser = async (targetUser: SearchUser) => {
     if (!token || !tenantId) return;
     setStartingChatUserId(targetUser.userId);
@@ -114,6 +145,7 @@ export function InboxScreen() {
           role: targetUser.role,
           initials: targetUser.initials,
           department: targetUser.department,
+          photoKey: targetUser.photoKey,
         },
       });
       loadThreadsAndSuggestions();
@@ -151,15 +183,33 @@ export function InboxScreen() {
     const subtitle = item.lastMessageText
       ? item.lastMessageText
       : 'No messages yet';
+    const photoUri = profilePhotoUri(item.recipient.photoKey ?? null);
 
     return (
       <Pressable
         accessibilityRole="button"
         onPress={() => handleOpenThread(item)}
         style={({ pressed }) => [styles.threadCard, pressed && styles.threadCardPressed]}>
-        {/* Left circular avatar with initial matching Image 1 */}
+        {/* Left circular avatar with image or initial */}
         <View style={styles.avatarCircle}>
-          <Text style={styles.avatarText}>{item.recipient.initials}</Text>
+          {photoUri ? (
+            <Image
+              source={{
+                uri: photoUri,
+                headers: token
+                  ? {
+                      Authorization: `Bearer ${token}`,
+                      'X-Tenant-Id': tenantId || 'nmit',
+                    }
+                  : undefined,
+              }}
+              style={styles.avatarImage}
+              contentFit="cover"
+              transition={150}
+            />
+          ) : (
+            <Text style={styles.avatarText}>{item.recipient.initials}</Text>
+          )}
         </View>
 
         {/* Center Name & Last message snippet */}
@@ -182,13 +232,32 @@ export function InboxScreen() {
 
   const renderSearchResultItem = ({ item }: { item: SearchUser }) => {
     const isStarting = startingChatUserId === item.userId;
+    const photoUri = profilePhotoUri(item.photoKey ?? null);
+
     return (
       <Pressable
         accessibilityRole="button"
         onPress={() => handleStartChatWithUser(item)}
         style={({ pressed }) => [styles.searchResultCard, pressed && styles.threadCardPressed]}>
         <View style={[styles.avatarCircle, { backgroundColor: isDark ? '#0E7490' : '#0284C7' }]}>
-          <Text style={styles.avatarText}>{item.initials}</Text>
+          {photoUri ? (
+            <Image
+              source={{
+                uri: photoUri,
+                headers: token
+                  ? {
+                      Authorization: `Bearer ${token}`,
+                      'X-Tenant-Id': tenantId || 'nmit',
+                    }
+                  : undefined,
+              }}
+              style={styles.avatarImage}
+              contentFit="cover"
+              transition={150}
+            />
+          ) : (
+            <Text style={styles.avatarText}>{item.initials}</Text>
+          )}
         </View>
         <View style={styles.threadInfo}>
           <Text style={styles.recipientName} numberOfLines={1}>
@@ -275,7 +344,7 @@ export function InboxScreen() {
         <View style={styles.centerBox}>
           <ActivityIndicator size="large" color={isDark ? '#38BDF8' : Colors.primary.accent} />
         </View>
-      ) : threads.length === 0 ? (
+      ) : activeThreads.length === 0 ? (
         <View style={{ flex: 1 }}>
           <View style={styles.emptyHeaderBox}>
             <Ionicons name="chatbubbles-outline" size={48} color={isDark ? '#334155' : '#94A3B8'} style={{ marginBottom: 10 }} />
@@ -306,7 +375,7 @@ export function InboxScreen() {
         </View>
       ) : (
         <FlatList
-          data={threads}
+          data={activeThreads}
           keyExtractor={(item) => item.id}
           renderItem={renderThreadCard}
           contentContainerStyle={[styles.listContent, { paddingBottom: 110 }]}
@@ -425,6 +494,12 @@ function createStyles(Colors: ColorTokens, isDark: boolean) {
       alignItems: 'center',
       justifyContent: 'center',
       marginRight: 14,
+      overflow: 'hidden',
+    },
+    avatarImage: {
+      width: '100%',
+      height: '100%',
+      borderRadius: 26,
     },
     avatarText: {
       fontFamily: Typography.bold,

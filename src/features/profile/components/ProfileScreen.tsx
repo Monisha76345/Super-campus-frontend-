@@ -24,6 +24,7 @@ import { useAuthSession } from '@/features/auth';
 import { DatePickerField } from '@/components/ui';
 import { HomeBottomTabs } from '@/features/home/components/HomeBottomTabs';
 import { openTab } from '@/features/campus/navigation';
+import { CsvDirectoryImportModal } from '@/features/campus/components/admin/CsvDirectoryImportModal';
 
 import { profileApi, profilePhotoUri } from '../api/profile-api';
 import { ProfileVisibility, ResidencyStatus } from '../enums';
@@ -69,6 +70,10 @@ export function ProfileScreen() {
   const [editingEducationId, setEditingEducationId] = useState<string | null>(null);
   const [editingExperienceId, setEditingExperienceId] = useState<string | null>(null);
   const [skillDraft, setSkillDraft] = useState('');
+  const [showCsvModal, setShowCsvModal] = useState(false);
+
+  const role = (user?.role || '').toLowerCase();
+  const isAdmin = role === 'admin' || role === 'campus_admin' || role === 'superadmin';
 
   const token = user?.token;
   const tenantId = user?.tenantId;
@@ -675,6 +680,22 @@ export function ProfileScreen() {
             </View>
           </View>
 
+          {/* Card Group: Campus Administration */}
+          {isAdmin ? (
+            <View style={styles.menuCard}>
+              <Pressable style={styles.menuRow} onPress={() => setShowCsvModal(true)}>
+                <View style={[styles.menuIconWrap, { backgroundColor: 'rgba(56, 189, 248, 0.15)' }]}>
+                  <Ionicons name="shield-checkmark-outline" size={21} color="#38BDF8" />
+                </View>
+                <View style={styles.menuTextWrap}>
+                  <Text style={styles.menuTitle}>Student Directory CSV Import</Text>
+                  <Text style={styles.menuSubtitle}>Upload student, faculty & hostel roster</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={Colors.text.tertiary} />
+              </Pressable>
+            </View>
+          ) : null}
+
           {/* Card Group 4: Log out */}
           {auth ? (
             <View style={styles.menuCard}>
@@ -894,6 +915,7 @@ export function ProfileScreen() {
           </View>
         </View>
       </Modal>
+      <CsvDirectoryImportModal visible={showCsvModal} onClose={() => setShowCsvModal(false)} />
     </View>
   );
 }

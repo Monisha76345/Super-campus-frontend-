@@ -9,11 +9,15 @@ export function openTab(router: AppRouter, tab: TabKey) {
     router.replace('/home');
     return;
   }
-  if (tab === 'services') {
+  if (tab === 'discover' || tab === 'services') {
     router.replace('/services');
     return;
   }
-  if (tab === 'community') {
+  if (tab === 'connect') {
+    router.replace('/connect');
+    return;
+  }
+  if (tab === 'inbox' || tab === 'community') {
     router.replace('/inbox');
     return;
   }

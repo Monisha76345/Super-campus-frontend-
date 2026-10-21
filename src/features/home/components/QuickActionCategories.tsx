@@ -1,227 +1,288 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useMemo } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ColorTokens } from '@/constants/colors';
 import { Typography } from '@/constants/fonts';
-import { useColors } from '@/theme/app-theme';
+import { useAppTheme } from '@/theme/app-theme';
 import { openService } from '@/features/campus/navigation';
 
-interface CategoryItem {
-  id: string;
-  title: string;
-  subtitle: string;
-  badge?: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  gradientBg: string;
-  iconColor: string;
-  glowColor: string;
-}
-
-const CATEGORIES: CategoryItem[] = [
-  {
-    id: 'food',
-    title: 'Food',
-    subtitle: 'Campus Cafes',
-    badge: 'Open',
-    icon: 'fast-food',
-    gradientBg: 'rgba(245, 158, 11, 0.18)',
-    iconColor: '#F59E0B',
-    glowColor: 'rgba(245, 158, 11, 0.35)',
-  },
-  {
-    id: 'marketplace',
-    title: 'Marketplace',
-    subtitle: 'Buy & Sell',
-    badge: 'Popular',
-    icon: 'bag-handle',
-    gradientBg: 'rgba(16, 185, 129, 0.18)',
-    iconColor: '#34D399',
-    glowColor: 'rgba(16, 185, 129, 0.35)',
-  },
-  {
-    id: 'sports',
-    title: 'Sports',
-    subtitle: 'Book & Play',
-    icon: 'basketball',
-    gradientBg: 'rgba(139, 92, 246, 0.18)',
-    iconColor: '#A78BFA',
-    glowColor: 'rgba(139, 92, 246, 0.35)',
-  },
-  {
-    id: 'outpass',
-    title: 'Outpass',
-    subtitle: 'Gate Pass',
-    badge: 'Fast',
-    icon: 'qr-code',
-    gradientBg: 'rgba(14, 165, 233, 0.18)',
-    iconColor: '#38BDF8',
-    glowColor: 'rgba(14, 165, 233, 0.35)',
-  },
-  {
-    id: 'projects',
-    title: 'Projects',
-    subtitle: 'Find Teams',
-    icon: 'terminal',
-    gradientBg: 'rgba(99, 102, 241, 0.18)',
-    iconColor: '#818CF8',
-    glowColor: 'rgba(99, 102, 241, 0.35)',
-  },
-];
-
 export function QuickActionCategories() {
-  const Colors = useColors();
-  const styles = useMemo(() => createStyles(Colors), [Colors]);
+  const { colors: Colors, scheme } = useAppTheme();
+  const isDark = scheme === 'dark';
+  const styles = useMemo(() => createStyles(Colors, isDark), [Colors, isDark]);
   const router = useRouter();
-  const onCategoryPress = (category: CategoryItem) => {
-    openService(router, category.id);
-  };
 
   return (
     <View style={styles.wrapper}>
-      <View style={styles.sectionHeaderRow}>
-        <Text style={styles.sectionHeading}>Campus Services</Text>
-        <Text style={styles.sectionSub}>Quick access</Text>
+      {/* Section Title with subtle glow dot */}
+      <View style={styles.titleRow}>
+        <View style={styles.headingIndicator} />
+        <Text style={styles.sectionHeading}>CAMPUS SHORTCUTS</Text>
       </View>
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-        style={styles.scrollContainer}>
-        {CATEGORIES.map((item) => (
-          <Pressable
-            key={item.id}
-            onPress={() => onCategoryPress(item)}
-            style={({ pressed }) => [styles.categoryCard, pressed && styles.cardPressed]}>
-            {/* Top Micro-Badge if present */}
-            {item.badge && (
-              <View style={styles.cardMicroBadge}>
-                <Text style={styles.cardMicroBadgeText}>{item.badge}</Text>
-              </View>
-            )}
+      {/* Row 1: 3 Column Cards (Food, Marketplace, Sports) */}
+      <View style={styles.rowThree}>
+        {/* Food */}
+        <Pressable
+          style={({ pressed }) => [styles.cardCol, pressed && styles.cardPressed]}
+          onPress={() => openService(router, 'food')}
+          accessibilityRole="button"
+        >
+          <View
+            style={[
+              styles.iconBox,
+              {
+                backgroundColor: isDark ? 'rgba(245, 158, 11, 0.14)' : '#EEF2FF',
+                borderColor: isDark ? 'rgba(245, 158, 11, 0.35)' : 'rgba(99, 102, 241, 0.2)',
+              },
+            ]}
+          >
+            <Ionicons
+              name="restaurant"
+              size={22}
+              color={isDark ? '#F59E0B' : '#4338CA'}
+            />
+          </View>
+          <Text style={styles.cardTitle}>Food</Text>
+          <Text style={styles.cardSub}>Coming soon</Text>
+        </Pressable>
 
-            {/* Glowing Icon Squircle */}
-            <View
-              style={[
-                styles.iconSquircle,
-                {
-                  backgroundColor: item.gradientBg,
-                  borderColor: item.glowColor,
-                },
-              ]}>
-              <Ionicons name={item.icon} size={22} color={item.iconColor} />
-            </View>
+        {/* Marketplace */}
+        <Pressable
+          style={({ pressed }) => [
+            styles.cardCol,
+            isDark && styles.marketplaceCardActive,
+            pressed && styles.cardPressed,
+          ]}
+          onPress={() => openService(router, 'marketplace')}
+          accessibilityRole="button"
+        >
+          <View
+            style={[
+              styles.iconBox,
+              {
+                backgroundColor: isDark ? 'rgba(16, 185, 129, 0.16)' : '#EEF2FF',
+                borderColor: isDark ? 'rgba(16, 185, 129, 0.4)' : 'rgba(99, 102, 241, 0.2)',
+              },
+            ]}
+          >
+            <Ionicons
+              name="storefront"
+              size={22}
+              color={isDark ? '#34D399' : '#4338CA'}
+            />
+          </View>
+          <Text style={styles.cardTitle}>Marketplace</Text>
+          <Text style={styles.cardSub}>Buy & sell</Text>
+        </Pressable>
 
-            {/* Title & Micro-subtitle */}
-            <Text style={styles.categoryTitle} numberOfLines={1}>
-              {item.title}
-            </Text>
-            <Text style={styles.categorySubtitle} numberOfLines={1}>
-              {item.subtitle}
-            </Text>
-          </Pressable>
-        ))}
-      </ScrollView>
+        {/* Sports */}
+        <Pressable
+          style={({ pressed }) => [styles.cardCol, pressed && styles.cardPressed]}
+          onPress={() => openService(router, 'sports')}
+          accessibilityRole="button"
+        >
+          <View
+            style={[
+              styles.iconBox,
+              {
+                backgroundColor: isDark ? 'rgba(139, 92, 246, 0.14)' : '#EEF2FF',
+                borderColor: isDark ? 'rgba(139, 92, 246, 0.35)' : 'rgba(99, 102, 241, 0.2)',
+              },
+            ]}
+          >
+            <Ionicons
+              name="basketball"
+              size={22}
+              color={isDark ? '#A78BFA' : '#4338CA'}
+            />
+          </View>
+          <Text style={styles.cardTitle}>Sports</Text>
+          <Text style={styles.cardSub}>Book. Play.</Text>
+        </Pressable>
+      </View>
+
+      {/* Row 2: 2 Column Horizontal Cards (Outpass, Projects) */}
+      <View style={styles.rowTwo}>
+        {/* Outpass */}
+        <Pressable
+          style={({ pressed }) => [styles.cardRow, pressed && styles.cardPressed]}
+          onPress={() => openService(router, 'outpass')}
+          accessibilityRole="button"
+        >
+          <View
+            style={[
+              styles.iconBoxRow,
+              {
+                backgroundColor: isDark ? 'rgba(14, 165, 233, 0.14)' : '#EEF2FF',
+                borderColor: isDark ? 'rgba(14, 165, 233, 0.35)' : 'rgba(99, 102, 241, 0.2)',
+              },
+            ]}
+          >
+            <Ionicons
+              name="briefcase"
+              size={20}
+              color={isDark ? '#38BDF8' : '#4338CA'}
+            />
+          </View>
+          <View style={styles.cardRowText}>
+            <Text style={styles.cardRowTitle}>Outpass</Text>
+            <Text style={styles.cardRowSub}>Request leave</Text>
+          </View>
+        </Pressable>
+
+        {/* Projects */}
+        <Pressable
+          style={({ pressed }) => [styles.cardRow, pressed && styles.cardPressed]}
+          onPress={() => openService(router, 'projects')}
+          accessibilityRole="button"
+        >
+          <View
+            style={[
+              styles.iconBoxRow,
+              {
+                backgroundColor: isDark ? 'rgba(99, 102, 241, 0.14)' : '#EEF2FF',
+                borderColor: isDark ? 'rgba(99, 102, 241, 0.35)' : 'rgba(99, 102, 241, 0.2)',
+              },
+            ]}
+          >
+            <Ionicons
+              name="apps"
+              size={20}
+              color={isDark ? '#818CF8' : '#4338CA'}
+            />
+          </View>
+          <View style={styles.cardRowText}>
+            <Text style={styles.cardRowTitle}>Projects</Text>
+            <Text style={styles.cardRowSub}>Find collaborators</Text>
+          </View>
+        </Pressable>
+      </View>
     </View>
   );
 }
 
-function createStyles(Colors: ColorTokens) {
+function createStyles(Colors: ColorTokens, isDark: boolean) {
   return StyleSheet.create({
-  wrapper: {
-    marginBottom: 22,
-  },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  sectionHeading: {
-    fontFamily: Typography.black,
-    fontSize: 18,
-    fontWeight: '900',
-    color: Colors.text.primary,
-    letterSpacing: -0.3,
-  },
-  sectionSub: {
-    fontFamily: Typography.medium,
-    fontSize: 12,
-    color: Colors.text.accent,
-    fontWeight: '600',
-  },
-  scrollContainer: {
-    marginHorizontal: -20,
-  },
-  scrollContent: {
-    paddingHorizontal: 20,
-    gap: 12,
-  },
-  categoryCard: {
-    width: 104,
-    backgroundColor: Colors.background.surface,
-    borderRadius: 22,
-    borderWidth: 1.2,
-    borderColor: Colors.border.subtle,
-    paddingVertical: 14,
-    paddingHorizontal: 8,
-    alignItems: 'center',
-    position: 'relative',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  cardMicroBadge: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    backgroundColor: 'rgba(99, 102, 241, 0.3)',
-    borderRadius: 6,
-    paddingHorizontal: 5,
-    paddingVertical: 1.5,
-  },
-  cardMicroBadgeText: {
-    fontFamily: Typography.bold,
-    fontSize: 8,
-    color: Colors.text.accent,
-    fontWeight: '800',
-    textTransform: 'uppercase',
-  },
-  iconSquircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
-    borderWidth: 1.2,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-  },
-  categoryTitle: {
-    fontFamily: Typography.bold,
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.text.primary,
-    textAlign: 'center',
-    marginBottom: 2,
-  },
-  categorySubtitle: {
-    fontFamily: Typography.regular,
-    fontSize: 10,
-    color: Colors.text.secondary,
-    textAlign: 'center',
-  },
-  cardPressed: {
-    opacity: 0.8,
-    transform: [{ scale: 0.95 }],
-    borderColor: 'rgba(129, 140, 248, 0.4)',
-  },
-});
+    wrapper: {
+      marginBottom: 12,
+    },
+    titleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 12,
+      gap: 6,
+    },
+    headingIndicator: {
+      width: 4,
+      height: 12,
+      borderRadius: 2,
+      backgroundColor: isDark ? '#818CF8' : '#2563EB',
+    },
+    sectionHeading: {
+      fontFamily: Typography.bold,
+      fontSize: 13,
+      fontWeight: '700',
+      color: isDark ? '#818CF8' : '#2563EB',
+      letterSpacing: 1.2,
+      textTransform: 'uppercase',
+    },
+    rowThree: {
+      flexDirection: 'row',
+      gap: 10,
+      marginBottom: 10,
+    },
+    cardCol: {
+      flex: 1,
+      backgroundColor: isDark ? '#101626' : Colors.background.surface,
+      borderRadius: 20,
+      borderWidth: 1.2,
+      borderColor: isDark ? 'rgba(99, 102, 241, 0.18)' : '#E0E7FF',
+      paddingVertical: 16,
+      paddingHorizontal: 6,
+      alignItems: 'center',
+      justifyContent: 'center',
+      shadowColor: isDark ? '#000000' : '#4338CA',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: isDark ? 0.3 : 0.06,
+      shadowRadius: 8,
+      elevation: 3,
+    },
+    marketplaceCardActive: {
+      borderColor: 'rgba(16, 185, 129, 0.3)',
+    },
+    iconBox: {
+      width: 46,
+      height: 46,
+      borderRadius: 14,
+      borderWidth: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 10,
+    },
+    cardTitle: {
+      fontFamily: Typography.bold,
+      fontSize: 13,
+      fontWeight: '700',
+      color: Colors.text.primary,
+      textAlign: 'center',
+      marginBottom: 2,
+    },
+    cardSub: {
+      fontFamily: Typography.medium,
+      fontSize: 11,
+      color: Colors.text.secondary,
+      textAlign: 'center',
+    },
+    rowTwo: {
+      flexDirection: 'row',
+      gap: 10,
+    },
+    cardRow: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: isDark ? '#101626' : Colors.background.surface,
+      borderRadius: 20,
+      borderWidth: 1.2,
+      borderColor: isDark ? 'rgba(99, 102, 241, 0.18)' : '#E0E7FF',
+      paddingVertical: 13,
+      paddingHorizontal: 13,
+      shadowColor: isDark ? '#000000' : '#4338CA',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: isDark ? 0.3 : 0.06,
+      shadowRadius: 8,
+      elevation: 3,
+    },
+    iconBoxRow: {
+      width: 42,
+      height: 42,
+      borderRadius: 12,
+      borderWidth: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 10,
+    },
+    cardRowText: {
+      flex: 1,
+    },
+    cardRowTitle: {
+      fontFamily: Typography.bold,
+      fontSize: 13,
+      fontWeight: '700',
+      color: Colors.text.primary,
+      marginBottom: 2,
+    },
+    cardRowSub: {
+      fontFamily: Typography.medium,
+      fontSize: 11,
+      color: Colors.text.secondary,
+    },
+    cardPressed: {
+      opacity: 0.85,
+      transform: [{ scale: 0.98 }],
+    },
+  });
 }

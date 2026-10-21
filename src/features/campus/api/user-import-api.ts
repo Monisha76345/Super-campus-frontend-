@@ -1,3 +1,6 @@
+import { File, UploadType } from 'expo-file-system';
+import { Platform } from 'react-native';
+
 import { publicEnv } from '@/lib/config/public-env';
 
 export interface ImportRowError {
@@ -25,35 +28,65 @@ export async function uploadDirectoryCsvApi(
 ): Promise<ImportBatchResult> {
   const effectiveTenant = tenantId || publicEnv.tenantId || 'nmit';
 
-  // Attempt live API upload if backend is accessible
+  if (!file?.uri) {
+    throw new Error('Please select a CSV file first');
+  }
+
+  const url = `${publicEnv.apiUrl}/users/import`;
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    'X-Tenant-Id': effectiveTenant,
+  };
+
   try {
-    const formData = new FormData();
-    if (file) {
-      formData.append('file', {
-        uri: file.uri,
-        name: file.name || 'directory.csv',
-        type: file.mimeType || 'text/csv',
-      } as any);
+    let statusCode = 200;
+    let rawBody = '';
+
+    if (Platform.OS === 'web') {
+      const blob = await (await fetch(file.uri)).blob();
+      const formData = new FormData();
+      formData.append('file', blob, file.name || 'directory.csv');
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: formData,
+      });
+      statusCode = response.status;
+      rawBody = await response.text();
+    } else {
+      // Native iOS & Android: use Expo's native multipart file uploader to avoid Android FormDataPart error
+      const uploadResult = await new File(file.uri).upload(url, {
+        httpMethod: 'POST',
+        uploadType: UploadType.MULTIPART,
+        fieldName: 'file',
+        mimeType: file.mimeType || 'text/csv',
+        headers,
+      });
+      statusCode = uploadResult.status;
+      rawBody = uploadResult.body;
     }
 
-    const response = await fetch(`${publicEnv.apiUrl}/users/import`, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        'X-Tenant-Id': effectiveTenant,
-      },
-      body: formData,
-    });
-
-    if (response.ok) {
-      const json = await response.json();
-      if (json?.data) {
-        return json.data as ImportBatchResult;
-      }
+    let json: any = {};
+    try {
+      json = JSON.parse(rawBody);
+    } catch {
+      throw new Error(`Server returned status ${statusCode}: ${rawBody.slice(0, 120)}`);
     }
-  } catch (error) {
-    // If backend offline or unreachable, fall back to robust local simulation
+
+    if (statusCode >= 400 || json.success === false) {
+      const err = Array.isArray(json.message) ? json.message.join(', ') : json.message;
+      throw new Error(err || `Import failed with status ${statusCode}`);
+    }
+
+    if (json?.data) {
+      return json.data as ImportBatchResult;
+    }
+  } catch (error: any) {
+    if (error?.message && !error.message.includes('Network request failed')) {
+      throw error;
+    }
+    // Fall back to local simulation only if backend network is unreachable
   }
 
   // Parse rows locally for fallback result

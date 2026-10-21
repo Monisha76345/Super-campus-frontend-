@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -17,6 +18,7 @@ import { ColorTokens } from '@/constants/colors';
 import { Typography } from '@/constants/fonts';
 import { useAuthSession } from '@/features/auth';
 import { useAppTheme } from '@/theme/app-theme';
+import { profilePhotoUri } from '@/features/profile/api/profile-api';
 import { fetchMessagesApi, sendMessageApi } from './chat-api';
 import { ChatMessage, ParticipantSummary } from './types';
 
@@ -47,6 +49,8 @@ export function ChatDetailScreen({
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const flatListRef = useRef<FlatList>(null);
+
+  const photoUri = profilePhotoUri(recipient.photoKey ?? null);
 
   const loadMessages = useCallback(
     async (isManualRefresh = false) => {
@@ -170,9 +174,31 @@ export function ChatDetailScreen({
           <Ionicons name="arrow-back" size={24} color={Colors.text.primary} />
         </Pressable>
 
-        <Text style={styles.headerTitle} numberOfLines={1}>
-          {recipient.fullName}
-        </Text>
+        <View style={styles.headerRecipientRow}>
+          <View style={styles.headerAvatarCircle}>
+            {photoUri ? (
+              <Image
+                source={{
+                  uri: photoUri,
+                  headers: token
+                    ? {
+                        Authorization: `Bearer ${token}`,
+                        'X-Tenant-Id': tenantId || 'nmit',
+                      }
+                    : undefined,
+                }}
+                style={styles.headerAvatarImage}
+                contentFit="cover"
+                transition={150}
+              />
+            ) : (
+              <Text style={styles.headerAvatarText}>{recipient.initials}</Text>
+            )}
+          </View>
+          <Text style={styles.headerTitle} numberOfLines={1}>
+            {recipient.fullName}
+          </Text>
+        </View>
 
         <Pressable
           accessibilityRole="button"
@@ -196,7 +222,24 @@ export function ChatDetailScreen({
       ) : messages.length === 0 ? (
         <View style={styles.centerBox}>
           <View style={styles.emptyAvatar}>
-            <Text style={styles.emptyAvatarText}>{recipient.initials}</Text>
+            {photoUri ? (
+              <Image
+                source={{
+                  uri: photoUri,
+                  headers: token
+                    ? {
+                        Authorization: `Bearer ${token}`,
+                        'X-Tenant-Id': tenantId || 'nmit',
+                      }
+                    : undefined,
+                }}
+                style={styles.emptyAvatarImage}
+                contentFit="cover"
+                transition={150}
+              />
+            ) : (
+              <Text style={styles.emptyAvatarText}>{recipient.initials}</Text>
+            )}
           </View>
           <Text style={styles.emptyTitle}>{recipient.fullName}</Text>
           {recipient.usn ? (
@@ -271,13 +314,39 @@ function createStyles(Colors: ColorTokens, isDark: boolean) {
     headerBackBtn: {
       padding: 4,
     },
+    headerRecipientRow: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginLeft: 12,
+      marginRight: 8,
+    },
+    headerAvatarCircle: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: isDark ? '#155E75' : '#0284C7',
+      alignItems: 'center',
+      justifyContent: 'center',
+      overflow: 'hidden',
+      marginRight: 10,
+    },
+    headerAvatarImage: {
+      width: '100%',
+      height: '100%',
+      borderRadius: 18,
+    },
+    headerAvatarText: {
+      fontFamily: Typography.bold,
+      fontSize: 14,
+      color: '#FFFFFF',
+    },
     headerTitle: {
       fontFamily: Typography.bold,
-      fontSize: 20,
+      fontSize: 18,
       fontWeight: '700',
       color: isDark ? '#F8FAFC' : Colors.text.primary,
       flex: 1,
-      marginLeft: 14,
     },
     headerActionBtn: {
       padding: 4,
@@ -289,13 +358,19 @@ function createStyles(Colors: ColorTokens, isDark: boolean) {
       paddingHorizontal: 24,
     },
     emptyAvatar: {
-      width: 72,
-      height: 72,
-      borderRadius: 36,
+      width: 76,
+      height: 76,
+      borderRadius: 38,
       backgroundColor: isDark ? '#155E75' : '#0284C7',
       alignItems: 'center',
       justifyContent: 'center',
       marginBottom: 12,
+      overflow: 'hidden',
+    },
+    emptyAvatarImage: {
+      width: '100%',
+      height: '100%',
+      borderRadius: 38,
     },
     emptyAvatarText: {
       fontFamily: Typography.bold,

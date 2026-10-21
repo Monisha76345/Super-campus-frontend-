@@ -5,6 +5,7 @@ export interface ParticipantSummary {
   role: string;
   initials: string;
   department: string | null;
+  photoKey?: string | null;
 }
 
 export interface ChatThread {
@@ -38,4 +39,5 @@ export interface SearchUser {
   role: string;
   department: string | null;
   initials: string;
+  photoKey?: string | null;
 }

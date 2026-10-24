@@ -39,6 +39,7 @@ import {
   visibilityLabel,
 } from '../labels';
 import { CampusProfile, EducationInput, ExperienceInput } from '../types';
+import { SUGGESTED_SKILLS } from '../suggested-skills';
 
 type Sheet = 'edit' | 'theme' | 'education' | 'experience' | 'photo' | null;
 
@@ -386,6 +387,18 @@ export function ProfileScreen() {
                 {profile?.handle ? `@${profile.handle}` : profile?.collegeEmail || 'Campus Member'} · USN: {profile?.usn || '—'}
               </Text>
             </View>
+
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                if (profile) {
+                  setDraft(profile);
+                  setSheet('edit');
+                }
+              }}
+              style={({ pressed }) => [styles.editProfileBtn, pressed && styles.pressed]}>
+              <Text style={styles.editProfileText}>Edit profile</Text>
+            </Pressable>
           </View>
         </View>
 
@@ -394,80 +407,49 @@ export function ProfileScreen() {
           {error ? <Text style={styles.error}>{error}</Text> : null}
           {loading ? <ActivityIndicator color={Colors.primary.light} style={styles.loader} /> : null}
 
-          {/* Card Group 1: Address & Account (2 rows matching reference) */}
-          <View style={styles.menuCard}>
-            <Pressable
-              style={styles.menuRow}
-              onPress={() => {
-                if (profile) {
-                  setDraft(profile);
-                  setSheet('edit');
-                }
-              }}>
-              <View style={styles.menuIconWrap}>
-                <Ionicons name="location-outline" size={21} color={Colors.text.secondary} />
+          {/* 1. Appearance Card */}
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setSheet('theme')}
+            style={({ pressed }) => [styles.sectionCard, pressed && styles.pressed]}>
+            <View style={styles.appearanceRow}>
+              <View style={styles.paletteIconWrap}>
+                <Ionicons name="color-palette" size={20} color="#C084FC" />
               </View>
-              <View style={styles.menuTextWrap}>
-                <Text style={styles.menuTitle}>My Campus & Address</Text>
-                <Text style={styles.menuSubtitle}>
-                  {residencyLabel(profile?.residency ?? ResidencyStatus.NotSet)} · {profile?.department || 'NMIT North Campus'}
-                </Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.cardTitle}>Appearance</Text>
+                <Text style={styles.cardSubtitle}>Theme · {themeLabel(theme)}</Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color={Colors.text.tertiary} />
-            </Pressable>
+              <Ionicons name="pencil" size={18} color={Colors.text.tertiary} />
+            </View>
+          </Pressable>
 
-            <View style={styles.menuDivider} />
-
-            <Pressable
-              style={styles.menuRow}
-              onPress={() => {
-                if (profile) {
-                  setDraft(profile);
-                  setSheet('edit');
-                }
-              }}>
-              <View style={styles.menuIconWrap}>
-                <Ionicons name="people-outline" size={21} color={Colors.text.secondary} />
-              </View>
-              <View style={styles.menuTextWrap}>
-                <Text style={styles.menuTitle}>Account</Text>
-                <Text style={styles.menuSubtitle}>
-                  {profile?.handle ? `@${profile.handle}` : 'Personal details, name & bio'}
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={Colors.text.tertiary} />
-            </Pressable>
-          </View>
-
-          {/* Card Group 2: Portfolio & Academic (Education, Experience, Skills, Visibility) */}
-          <View style={styles.menuCard}>
-            {/* Education Row */}
-            <Pressable
-              style={styles.menuRow}
-              onPress={() => {
-                setEditingEducationId(null);
-                setEducationDraft(EMPTY_EDUCATION);
-                setSheet('education');
-              }}>
-              <View style={styles.menuIconWrap}>
-                <Ionicons name="school-outline" size={21} color={Colors.text.secondary} />
-              </View>
-              <View style={styles.menuTextWrap}>
-                <Text style={styles.menuTitle}>Education</Text>
-                <Text style={styles.menuSubtitle}>
-                  {profile?.education.length ? `${profile.education.length} record(s) listed` : 'Add your school or university'}
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={Colors.text.tertiary} />
-            </Pressable>
+          {/* 2. Education Card */}
+          <View style={styles.sectionCard}>
+            <View style={styles.cardHead}>
+              <Text style={styles.cardTitle}>Education</Text>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  setEditingEducationId(null);
+                  setEducationDraft(EMPTY_EDUCATION);
+                  setSheet('education');
+                }}
+                style={({ pressed }) => [styles.addPillBtn, pressed && styles.pressed]}>
+                <Ionicons name="add" size={16} color={Colors.primary.light} />
+                <Text style={styles.addPillText}>Add</Text>
+              </Pressable>
+            </View>
 
             {profile?.education.length ? (
-              <View style={styles.nestedEntryList}>
-                {profile.education.map((item) => (
-                  <View key={item.id} style={styles.nestedEntryItem}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.nestedEntryTitle}>{item.school}</Text>
-                      <Text style={styles.nestedEntrySubtitle}>{item.degree} · {visibilityLabel(item.visibility)}</Text>
+              <View style={styles.entryList}>
+                {profile.education.map((item, idx) => (
+                  <View key={item.id} style={[styles.entryItem, idx > 0 && styles.entryDivider]}>
+                    <View style={{ flex: 1, paddingRight: 8 }}>
+                      <Text style={styles.entryTitle}>{item.school}</Text>
+                      <Text style={styles.entrySubtitle}>
+                        {[item.degree, [item.startDate, item.endDate].filter(Boolean).join(' - ')].filter(Boolean).join(' · ')}
+                      </Text>
                     </View>
                     <View style={styles.entryActionRow}>
                       <Pressable
@@ -475,51 +457,52 @@ export function ProfileScreen() {
                         accessibilityRole="button"
                         accessibilityLabel="Edit education"
                         onPress={() => editEducation(item)}
-                        style={styles.entryEditBtn}>
-                        <Ionicons name="pencil" size={14} color={Colors.primary.light} />
+                        style={styles.entryActionBtn}>
+                        <Ionicons name="pencil" size={16} color={Colors.text.secondary} />
                       </Pressable>
                       <Pressable
                         hitSlop={8}
                         accessibilityRole="button"
                         accessibilityLabel="Remove education"
-                        onPress={() => auth && run(() => profileApi.removeEducation(auth, item.id))}>
-                        <Ionicons name="close-circle" size={18} color={Colors.status.error} />
+                        onPress={() => auth && run(() => profileApi.removeEducation(auth, item.id))}
+                        style={styles.entryActionBtn}>
+                        <Ionicons name="trash-outline" size={16} color={Colors.text.secondary} />
                       </Pressable>
                     </View>
                   </View>
                 ))}
               </View>
-            ) : null}
+            ) : (
+              <Text style={styles.emptyCardText}>No education added yet. Add your school or university to stand out.</Text>
+            )}
+          </View>
 
-            <View style={styles.menuDivider} />
-
-            {/* Experience Row */}
-            <Pressable
-              style={styles.menuRow}
-              onPress={() => {
-                setEditingExperienceId(null);
-                setExperienceDraft(EMPTY_EXPERIENCE);
-                setSheet('experience');
-              }}>
-              <View style={styles.menuIconWrap}>
-                <Ionicons name="briefcase-outline" size={21} color={Colors.text.secondary} />
-              </View>
-              <View style={styles.menuTextWrap}>
-                <Text style={styles.menuTitle}>Experience</Text>
-                <Text style={styles.menuSubtitle}>
-                  {profile?.experience.length ? `${profile.experience.length} position(s) listed` : 'Add past internships & roles'}
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={Colors.text.tertiary} />
-            </Pressable>
+          {/* 3. Experience Card */}
+          <View style={styles.sectionCard}>
+            <View style={styles.cardHead}>
+              <Text style={styles.cardTitle}>Experience</Text>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  setEditingExperienceId(null);
+                  setExperienceDraft(EMPTY_EXPERIENCE);
+                  setSheet('experience');
+                }}
+                style={({ pressed }) => [styles.addPillBtn, pressed && styles.pressed]}>
+                <Ionicons name="add" size={16} color={Colors.primary.light} />
+                <Text style={styles.addPillText}>Add</Text>
+              </Pressable>
+            </View>
 
             {profile?.experience.length ? (
-              <View style={styles.nestedEntryList}>
-                {profile.experience.map((item) => (
-                  <View key={item.id} style={styles.nestedEntryItem}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.nestedEntryTitle}>{item.title} @ {item.employer}</Text>
-                      <Text style={styles.nestedEntrySubtitle}>{item.current ? 'Current position' : visibilityLabel(item.visibility)}</Text>
+              <View style={styles.entryList}>
+                {profile.experience.map((item, idx) => (
+                  <View key={item.id} style={[styles.entryItem, idx > 0 && styles.entryDivider]}>
+                    <View style={{ flex: 1, paddingRight: 8 }}>
+                      <Text style={styles.entryTitle}>{item.title} @ {item.employer}</Text>
+                      <Text style={styles.entrySubtitle}>
+                        {item.current ? 'Current position' : [item.startDate, item.endDate].filter(Boolean).join(' - ') || visibilityLabel(item.visibility)}
+                      </Text>
                     </View>
                     <View style={styles.entryActionRow}>
                       <Pressable
@@ -527,36 +510,34 @@ export function ProfileScreen() {
                         accessibilityRole="button"
                         accessibilityLabel="Edit experience"
                         onPress={() => editExperience(item)}
-                        style={styles.entryEditBtn}>
-                        <Ionicons name="pencil" size={14} color={Colors.primary.light} />
+                        style={styles.entryActionBtn}>
+                        <Ionicons name="pencil" size={16} color={Colors.text.secondary} />
                       </Pressable>
                       <Pressable
                         hitSlop={8}
                         accessibilityRole="button"
                         accessibilityLabel="Remove experience"
-                        onPress={() => auth && run(() => profileApi.removeExperience(auth, item.id))}>
-                        <Ionicons name="close-circle" size={18} color={Colors.status.error} />
+                        onPress={() => auth && run(() => profileApi.removeExperience(auth, item.id))}
+                        style={styles.entryActionBtn}>
+                        <Ionicons name="trash-outline" size={16} color={Colors.text.secondary} />
                       </Pressable>
                     </View>
                   </View>
                 ))}
               </View>
-            ) : null}
+            ) : (
+              <Text style={styles.emptyCardText}>No work experience added yet.</Text>
+            )}
+          </View>
 
-            <View style={styles.menuDivider} />
-
-            {/* Skills Row */}
-            <View style={styles.menuRowStatic}>
-              <View style={styles.menuIconWrap}>
-                <Ionicons name="sparkles-outline" size={21} color={Colors.text.secondary} />
-              </View>
-              <View style={styles.menuTextWrap}>
-                <Text style={styles.menuTitle}>Skills & Badges</Text>
-                <Text style={styles.menuSubtitle}>
-                  {profile?.skills.length ? `${profile.skills.length} skills verified` : 'Add technical and soft skills'}
-                </Text>
-              </View>
-            </View>
+          {/* 4. Skills Card */}
+          <View style={styles.sectionCard}>
+            <Text style={styles.cardTitle}>Skills</Text>
+            <Text style={styles.skillsSubtitle}>
+              {profile?.skills.length
+                ? `${profile.skills.length} skills added to your profile.`
+                : 'No skills tagged yet. Add the skills you know.'}
+            </Text>
 
             {profile?.skills.length ? (
               <View style={styles.skillPillWrap}>
@@ -573,12 +554,27 @@ export function ProfileScreen() {
               </View>
             ) : null}
 
+            {/* Suggested skill chips */}
+            <View style={styles.suggestedPillWrap}>
+              {SUGGESTED_SKILLS.filter(
+                (s) => !profile?.skills.some((ps) => ps.name.toLowerCase() === s.toLowerCase())
+              ).map((s) => (
+                <Pressable
+                  key={s}
+                  onPress={() => addSkill(s)}
+                  style={({ pressed }) => [styles.suggestedPill, pressed && styles.pressed]}>
+                  <Text style={styles.suggestedPillText}>+ {s}</Text>
+                </Pressable>
+              ))}
+            </View>
+
+            {/* Skill Composer */}
             <View style={styles.skillComposerRow}>
               <TextInput
                 value={skillDraft}
                 onChangeText={setSkillDraft}
                 onSubmitEditing={() => addSkill(skillDraft)}
-                placeholder="Add skill (e.g. React, Python)"
+                placeholder="Add a skill"
                 placeholderTextColor={Colors.text.tertiary}
                 style={styles.skillComposerInput}
               />
@@ -591,121 +587,34 @@ export function ProfileScreen() {
                 </Text>
               </Pressable>
             </View>
-
-            <View style={styles.menuDivider} />
-
-            {/* Directory Visibility Row */}
-            <Pressable
-              style={styles.menuRow}
-              onPress={() => {
-                if (profile) {
-                  setDraft(profile);
-                  setSheet('edit');
-                }
-              }}>
-              <View style={styles.menuIconWrap}>
-                <Ionicons name="eye-outline" size={21} color={Colors.text.secondary} />
-              </View>
-              <View style={styles.menuTextWrap}>
-                <Text style={styles.menuTitle}>Directory Visibility</Text>
-                <Text style={styles.menuSubtitle}>
-                  {visibilityLabel(profile?.visibility ?? ProfileVisibility.Campus)}
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={Colors.text.tertiary} />
-            </Pressable>
           </View>
 
-          {/* Card Group 3: Settings & Preferences (Notifications, Devices, Passwords, Language) */}
-          <View style={styles.menuCard}>
-            <Pressable
-              style={styles.menuRow}
-              onPress={() => router.push('/notifications')}>
-              <View style={styles.menuIconWrap}>
-                <Ionicons name="notifications-outline" size={21} color={Colors.text.secondary} />
-              </View>
-              <View style={styles.menuTextWrap}>
-                <Text style={styles.menuTitle}>Notifications</Text>
-                <Text style={styles.menuSubtitle}>Campus alerts & updates</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={Colors.text.tertiary} />
-            </Pressable>
-
-            <View style={styles.menuDivider} />
-
-            <Pressable
-              style={styles.menuRow}
-              onPress={() => setSheet('theme')}>
-              <View style={styles.menuIconWrap}>
-                <Ionicons name="phone-portrait-outline" size={21} color={Colors.text.secondary} />
-              </View>
-              <View style={styles.menuTextWrap}>
-                <Text style={styles.menuTitle}>Devices & Theme</Text>
-                <Text style={styles.menuSubtitle}>Theme · {themeLabel(theme)}</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={Colors.text.tertiary} />
-            </Pressable>
-
-            <View style={styles.menuDivider} />
-
-            <Pressable
-              style={styles.menuRow}
-              onPress={() => {
-                if (profile) {
-                  setDraft(profile);
-                  setSheet('edit');
-                }
-              }}>
-              <View style={styles.menuIconWrap}>
-                <Ionicons name="key-outline" size={21} color={Colors.text.secondary} />
-              </View>
-              <View style={styles.menuTextWrap}>
-                <Text style={styles.menuTitle}>Passwords & Security</Text>
-                <Text style={styles.menuSubtitle}>Campus authentication</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={Colors.text.tertiary} />
-            </Pressable>
-
-            <View style={styles.menuDivider} />
-
-            <View style={styles.menuRow}>
-              <View style={styles.menuIconWrap}>
-                <Ionicons name="chatbox-ellipses-outline" size={21} color={Colors.text.secondary} />
-              </View>
-              <View style={styles.menuTextWrap}>
-                <Text style={styles.menuTitle}>Language</Text>
-                <Text style={styles.menuSubtitle}>English (US)</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={Colors.text.tertiary} />
-            </View>
-          </View>
-
-          {/* Card Group: Campus Administration */}
+          {/* 5. Campus Administration (if admin) */}
           {isAdmin ? (
-            <View style={styles.menuCard}>
-              <Pressable style={styles.menuRow} onPress={() => setShowCsvModal(true)}>
+            <View style={styles.sectionCard}>
+              <Pressable style={styles.adminRow} onPress={() => setShowCsvModal(true)}>
                 <View style={[styles.menuIconWrap, { backgroundColor: 'rgba(56, 189, 248, 0.15)' }]}>
                   <Ionicons name="shield-checkmark-outline" size={21} color="#38BDF8" />
                 </View>
                 <View style={styles.menuTextWrap}>
-                  <Text style={styles.menuTitle}>Student Directory CSV Import</Text>
-                  <Text style={styles.menuSubtitle}>Upload student, faculty & hostel roster</Text>
+                  <Text style={styles.cardTitle}>Student Directory CSV Import</Text>
+                  <Text style={styles.cardSubtitle}>Upload student, faculty & hostel roster</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={18} color={Colors.text.tertiary} />
               </Pressable>
             </View>
           ) : null}
 
-          {/* Card Group 4: Log out */}
+          {/* 6. Log out */}
           {auth ? (
-            <View style={styles.menuCard}>
-              <Pressable style={styles.menuRow} onPress={handleLogout}>
+            <View style={styles.sectionCard}>
+              <Pressable style={styles.adminRow} onPress={handleLogout}>
                 <View style={[styles.menuIconWrap, styles.logoutIconWrap]}>
                   <Ionicons name="log-out-outline" size={21} color={Colors.status.error} />
                 </View>
                 <View style={styles.menuTextWrap}>
-                  <Text style={[styles.menuTitle, { color: Colors.status.error }]}>Log out</Text>
-                  <Text style={styles.menuSubtitle}>Sign out from your campus account</Text>
+                  <Text style={[styles.cardTitle, { color: Colors.status.error }]}>Log out</Text>
+                  <Text style={styles.cardSubtitle}>Sign out from your campus account</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={18} color={Colors.text.tertiary} />
               </Pressable>
@@ -1141,27 +1050,129 @@ function createStyles(Colors: ColorTokens) {
     loader: {
       marginVertical: 12,
     },
-    menuCard: {
+    sectionCard: {
       backgroundColor: Colors.background.surface,
       borderRadius: 22,
       borderWidth: 1.5,
       borderColor: cardBorder,
       marginBottom: 14,
-      paddingVertical: 4,
+      padding: 18,
       boxShadow: cardShadow,
     },
-    menuRow: {
+    cardHead: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingVertical: 14,
-      paddingHorizontal: 16,
+      justifyContent: 'space-between',
+      marginBottom: 12,
     },
-    menuRowStatic: {
+    cardTitle: {
+      fontFamily: Typography.bold,
+      fontSize: 18,
+      color: Colors.text.primary,
+    },
+    cardSubtitle: {
+      fontFamily: Typography.regular,
+      fontSize: 13,
+      color: Colors.text.secondary,
+      marginTop: 2,
+    },
+    addPillBtn: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingTop: 14,
-      paddingBottom: 8,
-      paddingHorizontal: 16,
+      gap: 4,
+      borderWidth: 1.5,
+      borderColor: Colors.border.subtle,
+      borderRadius: 20,
+      paddingHorizontal: 14,
+      paddingVertical: 6,
+      backgroundColor: Colors.background.elevated,
+    },
+    addPillText: {
+      fontFamily: Typography.semiBold,
+      fontSize: 13,
+      color: Colors.text.primary,
+    },
+    appearanceRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 14,
+    },
+    paletteIconWrap: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: 'rgba(192, 132, 252, 0.15)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    entryList: {
+      gap: 12,
+    },
+    entryItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: 6,
+    },
+    entryDivider: {
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: Colors.border.subtle,
+      paddingTop: 12,
+    },
+    entryTitle: {
+      fontFamily: Typography.semiBold,
+      fontSize: 15,
+      color: Colors.text.primary,
+    },
+    entrySubtitle: {
+      fontFamily: Typography.regular,
+      fontSize: 13,
+      color: Colors.text.secondary,
+      marginTop: 2,
+    },
+    entryActionRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+    entryActionBtn: {
+      padding: 4,
+    },
+    emptyCardText: {
+      fontFamily: Typography.regular,
+      fontSize: 14,
+      color: Colors.text.secondary,
+      marginTop: 4,
+    },
+    skillsSubtitle: {
+      fontFamily: Typography.regular,
+      fontSize: 14,
+      color: Colors.text.secondary,
+      marginTop: 4,
+      marginBottom: 12,
+    },
+    suggestedPillWrap: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+      marginBottom: 14,
+    },
+    suggestedPill: {
+      borderWidth: 1,
+      borderColor: Colors.border.subtle,
+      borderRadius: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      backgroundColor: Colors.background.elevated,
+    },
+    suggestedPillText: {
+      fontFamily: Typography.medium,
+      fontSize: 13,
+      color: Colors.text.secondary,
+    },
+    adminRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
     },
     menuIconWrap: {
       width: 38,
@@ -1178,64 +1189,19 @@ function createStyles(Colors: ColorTokens) {
     menuTextWrap: {
       flex: 1,
     },
-    menuTitle: {
-      fontFamily: Typography.semiBold,
-      fontSize: 16,
-      color: Colors.text.primary,
+    editProfileBtn: {
+      marginTop: 14,
+      borderWidth: 1.5,
+      borderColor: 'rgba(255, 255, 255, 0.4)',
+      borderRadius: 22,
+      paddingHorizontal: 28,
+      paddingVertical: 9,
+      backgroundColor: 'rgba(255, 255, 255, 0.12)',
     },
-    menuSubtitle: {
-      fontFamily: Typography.regular,
-      fontSize: 13,
-      color: Colors.text.secondary,
-      marginTop: 2,
-    },
-    menuDivider: {
-      height: StyleSheet.hairlineWidth,
-      backgroundColor: Colors.border.subtle,
-      marginLeft: 68,
-      marginRight: 16,
-    },
-
-    // Nested entry list (education & experience)
-    nestedEntryList: {
-      paddingHorizontal: 16,
-      paddingBottom: 10,
-      gap: 8,
-    },
-    nestedEntryItem: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: Colors.background.input,
-      borderRadius: 14,
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      borderWidth: 1,
-      borderColor: Colors.border.subtle,
-    },
-    nestedEntryTitle: {
+    editProfileText: {
       fontFamily: Typography.semiBold,
       fontSize: 14,
-      color: Colors.text.primary,
-    },
-    nestedEntrySubtitle: {
-      fontFamily: Typography.regular,
-      fontSize: 12,
-      color: Colors.text.secondary,
-      marginTop: 2,
-    },
-    entryActionRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-      marginLeft: 10,
-    },
-    entryEditBtn: {
-      width: 28,
-      height: 28,
-      borderRadius: 14,
-      backgroundColor: light ? 'rgba(49, 52, 145, 0.08)' : 'rgba(129, 140, 248, 0.16)',
-      alignItems: 'center',
-      justifyContent: 'center',
+      color: '#FFFFFF',
     },
 
     // Skills

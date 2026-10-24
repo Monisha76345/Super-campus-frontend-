@@ -168,7 +168,7 @@ export function LoginForm() {
           <Checkbox label="Remember me" checked={rememberMe} onToggle={setRememberMe} />
 
           <Pressable
-            onPress={() => Alert.alert('Forgot Password', 'Password reset instructions sent.')}
+            onPress={() => router.push('/(auth)/forgot-password')}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Text style={styles.forgotPasswordText}>Forgot password?</Text>
           </Pressable>

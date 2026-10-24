@@ -48,4 +48,32 @@ export const authApi = {
       body: { usn: usn.trim(), mobile: mobile.trim(), tenantId },
     });
   },
+
+  async requestForgotPasswordOtp(email: string): Promise<{ destination: string; debugOtp?: string }> {
+    const tenantId = publicEnv.tenantId;
+    return apiRequest<{ destination: string; debugOtp?: string }>('/auth/forgot-password/otp', {
+      method: 'POST',
+      tenantId,
+      body: { email: email.trim().toLowerCase() },
+    });
+  },
+
+  async verifyForgotPasswordOtp(email: string, otp: string): Promise<{ resetToken: string }> {
+    const tenantId = publicEnv.tenantId;
+    return apiRequest<{ resetToken: string }>('/auth/forgot-password/verify', {
+      method: 'POST',
+      tenantId,
+      body: { email: email.trim().toLowerCase(), otp: otp.trim() },
+    });
+  },
+
+  async resetPassword(resetToken: string, password: string): Promise<UserSession> {
+    const tenantId = publicEnv.tenantId;
+    const data = await apiRequest<LoginApiData>('/auth/forgot-password/reset', {
+      method: 'POST',
+      tenantId,
+      body: { resetToken: resetToken.trim(), password },
+    });
+    return toUserSession(data);
+  },
 };

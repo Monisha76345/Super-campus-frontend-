@@ -12,6 +12,10 @@ import {
   respondConnectionRequestApi,
 } from '@/features/connect/api/connect-api';
 import { IncomingConnectionRequest } from '@/features/connect/types/connect-types';
+import { outpassApi } from './api/outpass-api';
+import { OutpassItem } from './types/outpass.types';
+import { fetchMySportsBookingsApi } from './sports-api';
+import { SportsBooking } from './sports-types';
 
 import { CampusCard } from './components/CampusCard';
 import { CampusScreen } from './components/CampusScreen';
@@ -98,33 +102,61 @@ export function FoodScreen() {
 export function NotificationsScreen() {
   const Colors = useColors();
   const styles = useMemo(() => createStyles(Colors), [Colors]);
+  const router = useRouter();
   const { user } = useAuthSession();
   const token = user?.token || '';
   const tenantId = user?.tenantId || 'nmit';
 
   const [requests, setRequests] = useState<IncomingConnectionRequest[]>([]);
+  const [outpasses, setOutpasses] = useState<OutpassItem[]>([]);
+  const [sportsBookings, setSportsBookings] = useState<SportsBooking[]>([]);
+  const [loading, setLoading] = useState(true);
   const [respondingId, setRespondingId] = useState<string | null>(null);
 
-  const loadRequests = useCallback(async () => {
-    if (!token) return;
+  const loadAll = useCallback(async () => {
+    if (!token) {
+      setLoading(false);
+      return;
+    }
     try {
-      const data = await fetchIncomingRequestsApi(token, tenantId);
-      setRequests(data);
+      const [reqRes, outpassRes, sportsRes] = await Promise.allSettled([
+        fetchIncomingRequestsApi(token, tenantId),
+        outpassApi.getMyRequests({ token, tenantId }),
+        fetchMySportsBookingsApi(token, tenantId),
+      ]);
+
+      if (reqRes.status === 'fulfilled') {
+        setRequests(reqRes.value || []);
+      }
+      if (outpassRes.status === 'fulfilled') {
+        const active = (outpassRes.value || []).filter(
+          (o) => o.status === 'PENDING' || o.status === 'APPROVED' || o.status === 'ACTIVE'
+        );
+        setOutpasses(active);
+      }
+      if (sportsRes.status === 'fulfilled') {
+        const activeSports = (sportsRes.value || []).filter(
+          (b) => b.status === 'CONFIRMED' || !b.status
+        );
+        setSportsBookings(activeSports);
+      }
     } catch {
       // silent
+    } finally {
+      setLoading(false);
     }
   }, [token, tenantId]);
 
   useEffect(() => {
-    loadRequests();
-  }, [loadRequests]);
+    loadAll();
+  }, [loadAll]);
 
   const handleRespond = async (connectionId: string, action: 'ACCEPT' | 'DECLINE') => {
     if (respondingId) return;
     setRespondingId(connectionId);
     try {
       await respondConnectionRequestApi(token, tenantId, connectionId, action);
-      await loadRequests();
+      await loadAll();
     } catch (err) {
       console.warn('Failed to respond to request:', err);
     } finally {
@@ -132,12 +164,33 @@ export function NotificationsScreen() {
     }
   };
 
+  const hasAnyNotifications =
+    requests.length > 0 || outpasses.length > 0 || sportsBookings.length > 0;
+
   return (
     <CampusScreen title="Notifications" subtitle="Campus alerts and connection requests." activeTab="profile">
       <Note>Stay updated with real-time campus events, class schedules, and peer connection requests.</Note>
 
+      {loading && (
+        <View style={{ paddingVertical: 32, alignItems: 'center' }}>
+          <ActivityIndicator size="small" color="#38BDF8" />
+        </View>
+      )}
+
+      {!loading && !hasAnyNotifications && (
+        <View style={styles.emptyCard}>
+          <View style={styles.emptyIconBox}>
+            <Ionicons name="notifications-outline" size={26} color="#38BDF8" />
+          </View>
+          <Text style={styles.emptyTitle}>All caught up!</Text>
+          <Text style={styles.emptySubtitle}>
+            No pending alerts, gate passes, or connection requests.
+          </Text>
+        </View>
+      )}
+
       {/* Dynamic Incoming Connection Requests */}
-      {requests.length > 0 && (
+      {!loading && requests.length > 0 && (
         <View style={styles.notifRequestsBox}>
           <View style={styles.notifHeaderRow}>
             <View style={styles.notifHeaderBadge}>
@@ -197,9 +250,37 @@ export function NotificationsScreen() {
         </View>
       )}
 
-      <CampusCard icon="time" title="Next lecture in 35m" detail="Cloud Architecture & DevOps · Lecture Hall 302" meta="Now" />
-      <CampusCard icon="exit" title="Outpass is active" detail="Main Campus Gate · Valid till 10:30 PM" meta="Gate" accent="#34D399" />
-      <CampusCard icon="basketball" title="Upcoming booking" detail="Basketball · Main campus court" meta="Sports" accent="#A78BFA" />
+      {/* Dynamic Active Outpass Requests */}
+      {!loading &&
+        outpasses.map((op) => {
+          const isActive = op.status === 'ACTIVE' || op.status === 'APPROVED';
+          const returnFormatted = op.returnTime ? op.returnTime.replace('T', ' ').slice(0, 16) : '';
+          return (
+            <CampusCard
+              key={`outpass-${op.id}`}
+              icon="exit"
+              title={isActive ? 'Outpass is active' : 'Outpass pending approval'}
+              detail={`${op.destination || op.reason}${returnFormatted ? ' · Return: ' + returnFormatted : ''}`}
+              meta={isActive ? 'Gate' : 'Pending'}
+              accent={isActive ? '#34D399' : '#F59E0B'}
+              onPress={() => openService(router, 'outpass')}
+            />
+          );
+        })}
+
+      {/* Dynamic Upcoming Sports Bookings */}
+      {!loading &&
+        sportsBookings.map((sb) => (
+          <CampusCard
+            key={`sports-${sb.id}`}
+            icon="basketball"
+            title={`Upcoming: ${sb.facilityName || 'Sports Facility'}`}
+            detail={`${sb.bookingDate || ''} · ${sb.startTime?.slice(0, 5) || ''} - ${sb.endTime?.slice(0, 5) || ''}`}
+            meta="Sports"
+            accent="#A78BFA"
+            onPress={() => openService(router, 'sports')}
+          />
+        ))}
     </CampusScreen>
   );
 }
@@ -364,6 +445,38 @@ function createStyles(Colors: ColorTokens) {
   btnPressed: {
     opacity: 0.85,
     transform: [{ scale: 0.98 }],
+  },
+  emptyCard: {
+    backgroundColor: Colors.background.surface,
+    borderWidth: 1,
+    borderColor: Colors.border.subtle,
+    borderRadius: 20,
+    padding: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    marginTop: 8,
+  },
+  emptyIconBox: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: 'rgba(56, 189, 248, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  emptyTitle: {
+    fontFamily: Typography.bold,
+    fontSize: 16,
+    color: Colors.text.primary,
+  },
+  emptySubtitle: {
+    fontFamily: Typography.regular,
+    fontSize: 13,
+    color: Colors.text.secondary,
+    textAlign: 'center',
+    lineHeight: 18,
   },
 });
 }

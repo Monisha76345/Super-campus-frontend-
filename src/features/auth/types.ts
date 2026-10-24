@@ -16,6 +16,7 @@ export interface UserSession {
   campusName: string;
   hostelite: boolean;
   changePasswordRequired: boolean;
+  theme?: 'light' | 'dark' | 'system';
 }
 
 export interface AuthState {
@@ -34,4 +35,5 @@ export interface LoginApiData {
   campusName: string;
   hostelite?: boolean;
   changePasswordRequired?: boolean;
+  theme?: string;
 }

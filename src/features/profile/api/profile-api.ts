@@ -86,4 +86,12 @@ export const profileApi = {
     }
     return payload.data;
   },
+
+  updateTheme(auth: SessionAuth, theme: string): Promise<{ theme: string }> {
+    return apiRequest<{ theme: string }>('/users/theme', {
+      method: 'PATCH',
+      ...authHeaders(auth),
+      body: { theme },
+    });
+  },
 };

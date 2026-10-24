@@ -29,6 +29,7 @@ export function toUserSession(data: LoginApiData): UserSession {
     campusName: data.campusName,
     hostelite: Boolean(data.hostelite),
     changePasswordRequired: Boolean(data.changePasswordRequired),
+    theme: (['light', 'dark', 'system'].includes(data.theme || '') ? data.theme : 'dark') as 'light' | 'dark' | 'system',
   };
 }
 

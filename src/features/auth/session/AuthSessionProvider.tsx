@@ -11,7 +11,7 @@ interface AuthSessionContextValue {
   signOut: () => Promise<void>;
 }
 
-const AuthSessionContext = createContext<AuthSessionContextValue | null>(null);
+export const AuthSessionContext = createContext<AuthSessionContextValue | null>(null);
 
 export function AuthSessionProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserSession | null>(null);

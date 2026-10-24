@@ -1,4 +1,5 @@
 export * from './components/LoginForm';
+export * from './components/ForgotPasswordForm';
 export * from './components/AuthHeader';
 export * from './components/SocialLoginRow';
 export * from './hooks/useLogin';

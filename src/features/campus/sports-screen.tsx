@@ -21,6 +21,7 @@ import {
   CAMPUS_SPORTS_LIST,
   ChooseSportModal,
 } from './components/sports/ChooseSportModal';
+import { BookingSuccessAnimationModal } from './components/sports/BookingSuccessAnimationModal';
 import { CourtPassModal } from './components/sports/CourtPassModal';
 import { FindPlayersModal } from './components/sports/FindPlayersModal';
 import { MyBookingsModal } from './components/sports/MyBookingsModal';
@@ -76,6 +77,7 @@ export function SportsScreen() {
   const [findPlayersVisible, setFindPlayersVisible] = useState(false);
   const [myBookingsVisible, setMyBookingsVisible] = useState(false);
   const [activePassBooking, setActivePassBooking] = useState<SportsBooking | null>(null);
+  const [celebrationBooking, setCelebrationBooking] = useState<SportsBooking | null>(null);
 
   const handleOpenSportBooking = (sport: SportType) => {
     setSelectedSportForBooking(sport);
@@ -313,11 +315,11 @@ export function SportsScreen() {
         token={token}
         tenantId={tenantId}
         onBookingSuccess={(newBooking) => {
-          setActivePassBooking(newBooking);
+          setChooseSportVisible(false);
+          setCelebrationBooking(newBooking);
           loadData();
         }}
       />
-
 
       <FindPlayersModal
         visible={findPlayersVisible}
@@ -325,8 +327,19 @@ export function SportsScreen() {
         token={token}
         tenantId={tenantId}
         onJoinSuccess={(joined) => {
-          setActivePassBooking(joined);
+          setFindPlayersVisible(false);
+          setCelebrationBooking(joined);
           loadData();
+        }}
+      />
+
+      <BookingSuccessAnimationModal
+        visible={Boolean(celebrationBooking)}
+        booking={celebrationBooking}
+        onProceedToPass={() => {
+          const bk = celebrationBooking;
+          setCelebrationBooking(null);
+          setActivePassBooking(bk);
         }}
       />
 

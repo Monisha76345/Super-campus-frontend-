@@ -78,10 +78,6 @@ export function HomeScreenContent() {
 
   return (
     <View style={styles.root}>
-      {/* Ambient background lighting */}
-      <View style={styles.bgAmbientTop} pointerEvents="none" />
-      <View style={styles.bgAmbientMid} pointerEvents="none" />
-
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
@@ -194,46 +190,28 @@ function createStyles(Colors: ColorTokens) {
     backgroundColor: Colors.background.canvas,
     position: 'relative',
   },
-  bgAmbientTop: {
-    position: 'absolute',
-    top: -60,
-    right: -40,
-    width: 280,
-    height: 280,
-    borderRadius: 140,
-    backgroundColor: 'rgba(99, 102, 241, 0.14)',
-  },
-  bgAmbientMid: {
-    position: 'absolute',
-    top: 360,
-    left: -80,
-    width: 260,
-    height: 260,
-    borderRadius: 130,
-    backgroundColor: 'rgba(14, 165, 233, 0.10)',
-  },
   scrollContent: {
-    paddingHorizontal: 18,
-    paddingTop: 8,
-    paddingBottom: 160, // Ample clearance so the refresh button and cards are never cut off by the bottom bar
+    paddingHorizontal: 16,
+    paddingTop: 4,
+    paddingBottom: 110,
   },
   refreshButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    marginTop: 6,
-    paddingVertical: 14,
-    marginBottom: 20,
-    borderRadius: 18,
+    marginTop: 4,
+    paddingVertical: 12,
+    marginBottom: 16,
+    borderRadius: 12,
     backgroundColor: Colors.background.surface,
-    borderWidth: 1.2,
+    borderWidth: 1,
     borderColor: Colors.border.subtle,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    elevation: 2,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
   },
   refreshButtonText: {
     fontFamily: Typography.semiBold,
@@ -246,16 +224,16 @@ function createStyles(Colors: ColorTokens) {
   },
   superAdminCard: {
     backgroundColor: '#0A0F1D',
-    borderRadius: 20,
-    borderWidth: 1.5,
+    borderRadius: 14,
+    borderWidth: 1,
     borderColor: 'rgba(56, 189, 248, 0.35)',
-    padding: 18,
-    marginBottom: 20,
+    padding: 16,
+    marginBottom: 14,
     shadowColor: '#38BDF8',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 16,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 3,
   },
   superAdminHeaderRow: {
     flexDirection: 'row',

@@ -12,7 +12,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ColorTokens } from '@/constants/colors';
 import { Typography } from '@/constants/fonts';
 import { useAppTheme } from '@/theme/app-theme';
-import { useAuthSession } from '@/features/auth';
 
 export type TabKey =
   | 'home'
@@ -46,19 +45,16 @@ export function HomeBottomTabs({
   const styles = useMemo(() => createStyles(Colors, isDark), [Colors, isDark]);
   const insets = useSafeAreaInsets();
   const bottomOffset = Math.max(insets.bottom, 12) + 8;
-  const { user } = useAuthSession();
-
-  const campusPrefix = user?.campusName?.replace(/\s*campus\s*/i, '').trim() || 'NMIT';
 
   const TABS: TabItem[] = useMemo(
     () => [
       { key: 'home', label: 'Home', icon: 'home-outline', activeIcon: 'home' },
       { key: 'discover', label: 'Discover', icon: 'compass-outline', activeIcon: 'compass' },
-      { key: 'connect', label: `${campusPrefix}\nConnect`, icon: 'people-outline', activeIcon: 'people' },
+      { key: 'connect', label: 'Connect', icon: 'people-outline', activeIcon: 'people' },
       { key: 'inbox', label: 'Inbox', icon: 'chatbubble-outline', activeIcon: 'chatbubble' },
       { key: 'profile', label: 'Profile', icon: 'person-outline', activeIcon: 'person' },
     ],
-    [campusPrefix],
+    [],
   );
 
   const isTabActive = (tabKey: TabKey) => {
@@ -70,7 +66,6 @@ export function HomeBottomTabs({
 
   const renderTab = (tab: TabItem) => {
     const isActive = isTabActive(tab.key);
-    const isConnect = tab.key === 'connect';
 
     return (
       <Pressable
@@ -78,39 +73,31 @@ export function HomeBottomTabs({
         onPress={() => onTabChange(tab.key)}
         style={({ pressed }) => [
           styles.tabButton,
-          isConnect && styles.connectTabButton,
           pressed && styles.tabPressed,
         ]}
         hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
-        <View style={[styles.iconContainer, isConnect && isActive && styles.activeConnectPill]}>
+        <View style={styles.iconContainer}>
           <Ionicons
             name={isActive ? tab.activeIcon : tab.icon}
-            size={isConnect ? 22 : 21}
+            size={22}
             color={
               isActive
-                ? isConnect
-                  ? '#FFFFFF'
-                  : isDark
-                    ? '#F8FAFC'
-                    : Colors.primary.main
+                ? isDark
+                  ? '#38BDF8'
+                  : Colors.primary.main
                 : isDark
                   ? '#94A3B8'
-                  : Colors.text.secondary
+                  : '#64748B'
             }
           />
           {tab.badge && !isActive && <View style={styles.tabBadgeDot} />}
         </View>
 
         <Text
-          numberOfLines={2}
+          numberOfLines={1}
           style={[
             styles.tabLabel,
-            isConnect && styles.connectTabLabel,
-            isActive
-              ? isConnect
-                ? styles.activeConnectLabel
-                : styles.activeLabel
-              : styles.inactiveLabel,
+            isActive ? styles.activeLabel : styles.inactiveLabel,
           ]}>
           {tab.label}
         </Text>
@@ -146,7 +133,7 @@ function createStyles(Colors: ColorTokens, isDark: boolean) {
       width: '88%',
       height: 44,
       borderRadius: 22,
-      backgroundColor: isDark ? 'rgba(99, 102, 241, 0.28)' : 'rgba(99, 102, 241, 0.12)',
+      backgroundColor: isDark ? 'rgba(99, 102, 241, 0.28)' : 'rgba(49, 52, 145, 0.08)',
       filter: Platform.OS === 'web' ? 'blur(18px)' : undefined,
     },
     capsuleBar: {
@@ -154,26 +141,23 @@ function createStyles(Colors: ColorTokens, isDark: boolean) {
       alignItems: 'center',
       justifyContent: 'space-around',
       width: '100%',
-      height: 70,
+      height: 64,
       paddingHorizontal: 6,
       borderRadius: 36,
-      backgroundColor: Colors.background.bar,
+      backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
       borderWidth: 1.2,
-      borderColor: Colors.border.card,
-      shadowColor: '#000000',
-      shadowOffset: { width: 0, height: 12 },
-      shadowOpacity: isDark ? 0.6 : 0.14,
-      shadowRadius: 22,
-      elevation: 16,
+      borderColor: isDark ? '#1E293B' : 'rgba(15, 23, 42, 0.08)',
+      shadowColor: isDark ? '#000000' : 'rgba(15, 23, 42, 0.18)',
+      shadowOffset: { width: 0, height: isDark ? 12 : 6 },
+      shadowOpacity: isDark ? 0.6 : 0.12,
+      shadowRadius: isDark ? 22 : 14,
+      elevation: isDark ? 16 : 8,
     },
     tabButton: {
       alignItems: 'center',
       justifyContent: 'center',
       paddingVertical: 4,
       flex: 1,
-    },
-    connectTabButton: {
-      minWidth: 70,
     },
     tabPressed: {
       opacity: 0.7,
@@ -183,22 +167,8 @@ function createStyles(Colors: ColorTokens, isDark: boolean) {
       position: 'relative',
       alignItems: 'center',
       justifyContent: 'center',
-      height: 30,
+      height: 28,
       marginBottom: 2,
-    },
-    activeConnectPill: {
-      backgroundColor: Colors.primary.main,
-      borderWidth: 1,
-      borderColor: isDark ? 'rgba(129, 140, 248, 0.35)' : 'rgba(49, 52, 145, 0.25)',
-      paddingHorizontal: 20,
-      paddingVertical: 3,
-      borderRadius: 18,
-      height: 30,
-      shadowColor: Colors.primary.main,
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: isDark ? 0.45 : 0.2,
-      shadowRadius: 6,
-      elevation: 4,
     },
     tabBadgeDot: {
       position: 'absolute',
@@ -207,33 +177,23 @@ function createStyles(Colors: ColorTokens, isDark: boolean) {
       width: 6,
       height: 6,
       borderRadius: 3,
-      backgroundColor: Colors.primary.cyan,
+      backgroundColor: isDark ? '#38BDF8' : Colors.primary.main,
       borderWidth: 1,
-      borderColor: Colors.background.canvas,
+      borderColor: isDark ? '#080B11' : '#FFFFFF',
     },
     tabLabel: {
       fontFamily: Typography.medium,
-      fontSize: 10,
+      fontSize: 10.5,
       letterSpacing: 0.2,
       textAlign: 'center',
     },
-    connectTabLabel: {
-      fontSize: 9.5,
-      lineHeight: 12,
-      fontWeight: '700',
-    },
     activeLabel: {
-      color: Colors.text.accent,
+      color: isDark ? '#38BDF8' : Colors.primary.main,
       fontFamily: Typography.bold,
       fontWeight: '700',
-    },
-    activeConnectLabel: {
-      color: isDark ? Colors.primary.cyan : Colors.primary.main,
-      fontFamily: Typography.bold,
-      fontWeight: '800',
     },
     inactiveLabel: {
-      color: Colors.text.secondary,
+      color: isDark ? '#94A3B8' : '#64748B',
     },
   });
 }

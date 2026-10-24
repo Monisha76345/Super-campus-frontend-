@@ -11,7 +11,11 @@ export interface ParticipantSummary {
 export interface ChatThread {
   id: string;
   type: 'DIRECT' | 'GROUP';
+  name?: string | null;
+  photoKey?: string | null;
   recipient: ParticipantSummary;
+  participantsCount?: number;
+  participants?: ParticipantSummary[];
   lastMessageText: string | null;
   lastMessageAt: string | null;
   formattedDate: string | null;
@@ -24,6 +28,8 @@ export interface ChatMessage {
   senderId: string;
   senderName: string;
   senderUsn: string | null;
+  senderPhotoKey?: string | null;
+  senderInitials?: string | null;
   content: string;
   status: 'SENT' | 'DELIVERED' | 'READ';
   isMine: boolean;
@@ -33,6 +39,7 @@ export interface ChatMessage {
 
 export interface SearchUser {
   userId: string;
+  id?: string;
   fullName: string;
   usn: string;
   collegeEmail: string;

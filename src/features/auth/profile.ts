@@ -1,12 +1,13 @@
 import { AccountRole, LoginApiData, UserSession } from './types';
 
-const ACCOUNT_ROLES: AccountRole[] = ['student', 'faculty', 'admin', 'alumni', 'superadmin'];
+const ACCOUNT_ROLES: AccountRole[] = ['student', 'faculty', 'alumni', 'warden', 'superadmin', 'admin'];
 
 const ROLE_LABEL: Record<AccountRole, string> = {
   student: 'Student',
   faculty: 'Faculty',
-  admin: 'Campus Admin',
+  admin: 'Super Admin',
   alumni: 'Alumni',
+  warden: 'Hostel Warden',
   superadmin: 'Super Admin',
 };
 

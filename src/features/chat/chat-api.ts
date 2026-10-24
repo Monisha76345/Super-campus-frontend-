@@ -60,3 +60,43 @@ export async function searchUsersApi(
     tenantId,
   });
 }
+
+export async function createGroupChatApi(
+  token: string,
+  tenantId: string,
+  name: string,
+  memberUserIds: string[],
+): Promise<ChatThread> {
+  return apiRequest<ChatThread>('/chat/threads/group', {
+    method: 'POST',
+    token,
+    tenantId,
+    body: { name, memberUserIds },
+  });
+}
+
+export async function fetchThreadDetailsApi(
+  token: string,
+  tenantId: string,
+  threadId: string,
+): Promise<ChatThread> {
+  return apiRequest<ChatThread>(`/chat/threads/${threadId}`, {
+    method: 'GET',
+    token,
+    tenantId,
+  });
+}
+
+export async function updateGroupChatApi(
+  token: string,
+  tenantId: string,
+  threadId: string,
+  body: { name?: string; addMemberUserIds?: string[]; removeUserId?: string },
+): Promise<ChatThread> {
+  return apiRequest<ChatThread>(`/chat/threads/${threadId}/group`, {
+    method: 'PATCH',
+    token,
+    tenantId,
+    body,
+  });
+}

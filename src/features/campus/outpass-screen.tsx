@@ -44,7 +44,8 @@ export function OutpassScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { user } = useAuthSession();
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = user?.role === 'warden' || user?.role === 'superadmin' || user?.role === 'admin';
+  const isHostelite = !!user?.hostelite;
   const Colors = useColors();
   const styles = useMemo(() => createStyles(Colors), [Colors]);
 
@@ -175,6 +176,10 @@ export function OutpassScreen() {
   };
 
   const handleSubmit = async () => {
+    if (!isHostelite) {
+      Alert.alert('Hostel Resident Only', 'Only registered hostel residents can submit an outpass.');
+      return;
+    }
     if (!destination.trim()) {
       Alert.alert('Required Field', 'Please enter a destination.');
       return;
@@ -365,6 +370,20 @@ export function OutpassScreen() {
                   );
                 })}
               </View>
+            </View>
+          ) : !isHostelite ? (
+            /* Day Scholar Notice */
+            <View style={styles.formCard}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                <Ionicons name="home-outline" size={22} color="#60A5FA" />
+                <Text style={styles.formTitle}>Hostel Residents Only</Text>
+              </View>
+              <Text style={[styles.formSubtitle, { marginBottom: 6 }]}>
+                Outpass applications and digital gate passes are only available for registered hostel residents.
+              </Text>
+              <Text style={[styles.formSubtitle, { color: Colors.text.tertiary, fontSize: 13 }]}>
+                If you reside in the hostel, please contact your Warden or Super Admin to update your hostelite profile status.
+              </Text>
             </View>
           ) : (
             /* Student View: Request an Outpass Form */

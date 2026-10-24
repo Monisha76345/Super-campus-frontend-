@@ -71,6 +71,7 @@ function RootNavigator() {
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
         <Stack.Screen name="home" options={{ headerShown: false }} />
+        <Stack.Screen name="discover" options={{ headerShown: false }} />
         <Stack.Screen name="explore" options={{ headerShown: false }} />
       </Stack>
     </ThemeProvider>

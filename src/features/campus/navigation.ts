@@ -9,7 +9,11 @@ export function openTab(router: AppRouter, tab: TabKey) {
     router.replace('/home');
     return;
   }
-  if (tab === 'discover' || tab === 'services') {
+  if (tab === 'discover') {
+    router.replace('/discover');
+    return;
+  }
+  if (tab === 'services') {
     router.replace('/services');
     return;
   }

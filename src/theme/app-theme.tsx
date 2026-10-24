@@ -20,10 +20,7 @@ function resolveScheme(preference: AppTheme, system: ColorSchemeName): 'light' |
   if (preference === AppTheme.Light) {
     return 'light';
   }
-  if (preference === AppTheme.Dark) {
-    return 'dark';
-  }
-  return system === 'light' ? 'light' : 'dark';
+  return 'dark';
 }
 
 export function AppThemeProvider({ children }: { children: ReactNode }) {

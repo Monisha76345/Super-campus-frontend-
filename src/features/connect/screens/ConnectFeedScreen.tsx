@@ -26,6 +26,7 @@ import {
   fetchEventsApi,
   fetchOpportunitiesApi,
 } from '../api/connect-api';
+import { ClubProfileModal } from '../components/ClubProfileModal';
 
 interface ConnectFeedScreenProps {
   campusName: string;
@@ -98,6 +99,15 @@ export function ConnectFeedScreen({
     loadData();
   };
 
+  const [selectedClub, setSelectedClub] = useState<CampusClub | null>(null);
+
+  const handleClubUpdated = (updated: CampusClub) => {
+    setClubs((prev) =>
+      prev.map((c) => (c.id === updated.id ? { ...c, ...updated } : c)),
+    );
+    setSelectedClub((current) => (current?.id === updated.id ? { ...current, ...updated } : current));
+  };
+
   const renderEventItem = ({ item }: { item: CampusEvent }) => (
     <View style={styles.card}>
       <View style={styles.cardHeaderRow}>
@@ -122,16 +132,36 @@ export function ConnectFeedScreen({
   );
 
   const renderClubItem = ({ item }: { item: CampusClub }) => (
-    <View style={styles.card}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`View ${item.name} profile and members`}
+      style={({ pressed }) => [styles.card, styles.clubCard, pressed && styles.cardPressed]}
+      onPress={() => setSelectedClub(item)}
+    >
       <View style={styles.cardHeaderRow}>
         <View style={styles.eventBadge}>
           <Text style={styles.eventBadgeText}>{item.category}</Text>
         </View>
-        <Text style={styles.memberCountText}>{item.memberCount} members</Text>
+        <View style={styles.clubHeaderRight}>
+          {item.isJoined ? (
+            <View style={styles.joinedBadge}>
+              <Ionicons name="checkmark-circle" size={12} color="#10B981" />
+              <Text style={styles.joinedBadgeText}>Joined</Text>
+            </View>
+          ) : null}
+          <Text style={styles.memberCountText}>{item.memberCount} members</Text>
+        </View>
       </View>
       <Text style={styles.cardTitle}>{item.name}</Text>
-      <Text style={styles.cardDescription}>{item.description}</Text>
-    </View>
+      <Text style={styles.cardDescription} numberOfLines={2}>{item.description}</Text>
+      <View style={styles.clubCardFooter}>
+        <View style={styles.clubCardFooterLeft}>
+          <Ionicons name="people" size={14} color={isDark ? '#38BDF8' : Colors.primary.main} />
+          <Text style={styles.viewClubMembersText}>View profile & full roster</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={16} color={Colors.text.secondary} />
+      </View>
+    </Pressable>
   );
 
   const renderOpportunityItem = ({ item }: { item: CampusOpportunity }) => (
@@ -271,6 +301,16 @@ export function ConnectFeedScreen({
           }
         />
       )}
+
+      {/* 6. Club Profile Modal */}
+      <ClubProfileModal
+        visible={Boolean(selectedClub)}
+        club={selectedClub}
+        token={token}
+        tenantId={tenantId}
+        onClose={() => setSelectedClub(null)}
+        onClubUpdated={handleClubUpdated}
+      />
     </View>
   );
 }
@@ -486,6 +526,52 @@ function createStyles(Colors: ColorTokens, isDark: boolean) {
       flex: 1,
       alignItems: 'center',
       justifyContent: 'center',
+    },
+    clubCard: {
+      borderWidth: 1,
+      borderColor: isDark ? '#1E293B' : Colors.border.subtle,
+    },
+    cardPressed: {
+      opacity: 0.85,
+      transform: [{ scale: 0.99 }],
+    },
+    clubHeaderRight: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    joinedBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.1)',
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+      borderRadius: 6,
+      gap: 4,
+    },
+    joinedBadgeText: {
+      fontSize: 11,
+      fontFamily: Typography.semiBold,
+      color: '#10B981',
+    },
+    clubCardFooter: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      borderTopWidth: 1,
+      borderTopColor: isDark ? '#1E293B' : Colors.border.subtle,
+      paddingTop: 10,
+      marginTop: 4,
+    },
+    clubCardFooterLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    viewClubMembersText: {
+      fontFamily: Typography.medium,
+      fontSize: 12,
+      color: isDark ? '#38BDF8' : Colors.primary.main,
     },
   });
 }

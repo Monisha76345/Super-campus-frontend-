@@ -62,6 +62,8 @@ export function CreateListingModal({
   const [price, setPrice] = useState('');
   const [condition, setCondition] = useState<MarketplaceCondition>('good');
   const [category, setCategory] = useState<MarketplaceCategory>('Uncategorized');
+  const [contactPhone, setContactPhone] = useState('');
+  const [contactEmail, setContactEmail] = useState('');
   const [photos, setPhotos] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
@@ -141,6 +143,8 @@ export function CreateListingModal({
         price: parsedPrice,
         condition,
         category,
+        contactPhone: contactPhone.trim() || undefined,
+        contactEmail: contactEmail.trim() || undefined,
         images: photos,
       });
       // reset form
@@ -149,6 +153,8 @@ export function CreateListingModal({
       setPrice('');
       setCondition('good');
       setCategory('Uncategorized');
+      setContactPhone('');
+      setContactEmail('');
       setPhotos([]);
       onClose();
     } catch (err: any) {
@@ -306,6 +312,37 @@ export function CreateListingModal({
             {photos.length === 0 ? 'Choose product photos' : `Add more (${photos.length}/4)`}
           </Text>
         </Pressable>
+
+        {/* Contact Info Section */}
+        <Text style={styles.sectionLabel}>Contact Details (Optional)</Text>
+        <Text style={styles.photoHint}>
+          In addition to Supercampus in-app chat, interested buyers can contact you via:
+        </Text>
+
+        <View style={styles.contactInputWrapper}>
+          <Ionicons name="call-outline" size={18} color={Colors.primary.accent} style={{ marginRight: 8 }} />
+          <TextInput
+            style={styles.contactInput}
+            placeholder="Phone / WhatsApp (e.g. +91 9876543210)"
+            placeholderTextColor={Colors.text.tertiary}
+            keyboardType="phone-pad"
+            value={contactPhone}
+            onChangeText={setContactPhone}
+          />
+        </View>
+
+        <View style={[styles.contactInputWrapper, { marginTop: 8 }]}>
+          <Ionicons name="mail-outline" size={18} color={Colors.primary.accent} style={{ marginRight: 8 }} />
+          <TextInput
+            style={styles.contactInput}
+            placeholder="Contact Email (e.g. yourname@campus.edu)"
+            placeholderTextColor={Colors.text.tertiary}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            value={contactEmail}
+            onChangeText={setContactEmail}
+          />
+        </View>
 
         {/* Role moderation notice */}
         <View style={styles.noticeBox}>
@@ -493,6 +530,22 @@ function createStyles(Colors: ColorTokens) {
       fontWeight: '600',
       color: Colors.primary.accent,
     },
+    contactInputWrapper: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: Colors.background.input,
+      borderWidth: 1,
+      borderColor: Colors.border.subtle,
+      borderRadius: 12,
+      paddingHorizontal: 12,
+      paddingVertical: Platform.OS === 'ios' ? 12 : 8,
+    },
+    contactInput: {
+      flex: 1,
+      fontFamily: Typography.medium,
+      fontSize: 14,
+      color: Colors.text.primary,
+    },
     noticeBox: {
       flexDirection: 'row',
       alignItems: 'flex-start',
@@ -501,6 +554,7 @@ function createStyles(Colors: ColorTokens) {
       borderColor: Colors.border.card,
       borderRadius: 12,
       padding: 12,
+      marginTop: 20,
       marginBottom: 24,
     },
     noticeText: {

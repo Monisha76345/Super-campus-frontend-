@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useMemo } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -13,11 +13,13 @@ import { authApi } from '../api/authApi';
 import { useLogin } from '../hooks/useLogin';
 import { AuthHeader } from './AuthHeader';
 import { SocialLoginRow } from './SocialLoginRow';
+import { ReferralInputSection } from '@/features/referral';
 
 export function LoginForm() {
   const Colors = useColors();
   const styles = useMemo(() => createStyles(Colors), [Colors]);
   const router = useRouter();
+  const params = useLocalSearchParams<{ ref?: string; openReferral?: string }>();
   const [alumniMode, setAlumniMode] = React.useState(false);
   const [superAdminMode, setSuperAdminMode] = React.useState(false);
   const [usn, setUsn] = React.useState('');
@@ -192,6 +194,11 @@ export function LoginForm() {
 
         {!superAdminMode && (
           <>
+            <ReferralInputSection
+              initialCode={params.ref}
+              forceOpen={params.openReferral === 'true' || Boolean(params.ref)}
+            />
+
             <Pressable
               onPress={() => {
                 setAlumniMode((current) => !current);

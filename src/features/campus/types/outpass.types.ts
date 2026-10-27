@@ -7,12 +7,15 @@ export type OutpassStatus =
   | 'CANCELLED'
   | 'OVERDUE';
 
+export type PassType = 'OUTPASS' | 'LEAVE';
+
 export interface OutpassItem {
   id: string;
   studentId: string;
   studentName?: string | null;
   usn?: string | null;
   roomNumber?: string | null;
+  passType?: PassType;
   destination: string;
   reason: string;
   departureTime: string;
@@ -34,6 +37,7 @@ export interface CreateOutpassInput {
   reason: string;
   departureTime: string;
   returnTime: string;
+  passType?: PassType;
   roomNumber?: string;
   parentPhone?: string;
 }

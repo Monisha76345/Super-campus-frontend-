@@ -30,13 +30,16 @@ export function BookingSuccessAnimationModal({
   const isDark = scheme === 'dark';
   const styles = useMemo(() => createStyles(Colors, isDark), [Colors, isDark]);
 
-  // Shared Animation Values
+  // Motion Values
   const ballTranslateX = useRef(new Animated.Value(-90)).current;
   const ballTranslateY = useRef(new Animated.Value(110)).current;
   const ballScale = useRef(new Animated.Value(0.9)).current;
   const ballRotate = useRef(new Animated.Value(0)).current;
   const netWiggle = useRef(new Animated.Value(1)).current;
   const racquetRotate = useRef(new Animated.Value(-30)).current;
+
+  // Table tennis table bounce second phase
+  const pingPongBounceAnim = useRef(new Animated.Value(0)).current;
 
   // Impact & Confetti
   const impactScale = useRef(new Animated.Value(0)).current;
@@ -51,13 +54,14 @@ export function BookingSuccessAnimationModal({
   useEffect(() => {
     if (!visible) return;
 
-    // Reset values
+    // Reset all animation values
     ballTranslateX.setValue(-90);
     ballTranslateY.setValue(110);
     ballScale.setValue(0.9);
     ballRotate.setValue(0);
     netWiggle.setValue(1);
     racquetRotate.setValue(-30);
+    pingPongBounceAnim.setValue(0);
     impactScale.setValue(0);
     impactOpacity.setValue(0);
     confettiAnim.setValue(0);
@@ -65,7 +69,7 @@ export function BookingSuccessAnimationModal({
     textOpacityAnim.setValue(0);
     cardScaleAnim.setValue(0.85);
 
-    // Initial card pop-in
+    // Card pop-in spring
     Animated.spring(cardScaleAnim, {
       toValue: 1,
       friction: 6,
@@ -73,171 +77,231 @@ export function BookingSuccessAnimationModal({
       useNativeDriver: true,
     }).start();
 
+    const triggerBurstAndText = () => {
+      Animated.parallel([
+        Animated.timing(impactScale, {
+          toValue: 2,
+          duration: 350,
+          useNativeDriver: true,
+        }),
+        Animated.timing(impactOpacity, {
+          toValue: 1,
+          duration: 100,
+          useNativeDriver: true,
+        }),
+        Animated.timing(confettiAnim, {
+          toValue: 1,
+          duration: 600,
+          easing: Easing.out(Easing.back(1.5)),
+          useNativeDriver: true,
+        }),
+        Animated.timing(textSlideAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(textOpacityAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        Animated.timing(impactOpacity, {
+          toValue: 0,
+          duration: 250,
+          useNativeDriver: true,
+        }).start();
+      });
+    };
+
     if (sportType === 'BASKETBALL') {
-      // 🏀 BASKETBALL SHOOT & SWISH SEQUENCE
+      // 🏀 BASKETBALL: HIGH ARC SHOT & CLEAN SWISH THROUGH HOOP
       Animated.sequence([
-        // 1. Arc up to peak (x: -20, y: -45)
+        // Arc up to apex
         Animated.parallel([
           Animated.timing(ballTranslateX, {
             toValue: -15,
-            duration: 550,
+            duration: 520,
             easing: Easing.out(Easing.quad),
             useNativeDriver: true,
           }),
           Animated.timing(ballTranslateY, {
-            toValue: -40,
-            duration: 550,
+            toValue: -45,
+            duration: 520,
             easing: Easing.out(Easing.quad),
             useNativeDriver: true,
           }),
           Animated.timing(ballRotate, {
             toValue: 1,
-            duration: 550,
+            duration: 520,
             useNativeDriver: true,
           }),
         ]),
-        // 2. Swish down through hoop into basket (x: 24, y: 38)
+        // Swish down through orange rim & net
         Animated.parallel([
           Animated.timing(ballTranslateX, {
             toValue: 24,
-            duration: 350,
+            duration: 340,
             easing: Easing.in(Easing.quad),
             useNativeDriver: true,
           }),
           Animated.timing(ballTranslateY, {
             toValue: 38,
-            duration: 350,
+            duration: 340,
             easing: Easing.in(Easing.quad),
             useNativeDriver: true,
           }),
           Animated.timing(ballScale, {
             toValue: 0.72,
-            duration: 350,
+            duration: 340,
             useNativeDriver: true,
           }),
         ]),
       ]).start(() => {
-        // 3. Net wiggles & sparkles burst
-        Animated.parallel([
-          Animated.sequence([
-            Animated.timing(netWiggle, {
-              toValue: 1.45,
-              duration: 120,
-              useNativeDriver: true,
-            }),
-            Animated.timing(netWiggle, {
-              toValue: 0.85,
-              duration: 120,
-              useNativeDriver: true,
-            }),
-            Animated.timing(netWiggle, {
-              toValue: 1,
-              duration: 120,
-              useNativeDriver: true,
-            }),
-          ]),
-          Animated.timing(impactScale, {
-            toValue: 1.8,
-            duration: 350,
-            useNativeDriver: true,
-          }),
-          Animated.timing(impactOpacity, {
-            toValue: 1,
-            duration: 100,
-            useNativeDriver: true,
-          }),
-          Animated.timing(confettiAnim, {
-            toValue: 1,
-            duration: 600,
-            easing: Easing.out(Easing.back(1.5)),
-            useNativeDriver: true,
-          }),
-        ]).start(() => {
-          Animated.timing(impactOpacity, {
-            toValue: 0,
-            duration: 200,
-            useNativeDriver: true,
-          }).start();
-        });
-
-        // 4. Text reveal
-        Animated.parallel([
-          Animated.timing(textSlideAnim, {
-            toValue: 0,
-            duration: 300,
-            useNativeDriver: true,
-          }),
-          Animated.timing(textOpacityAnim, {
-            toValue: 1,
-            duration: 300,
-            useNativeDriver: true,
-          }),
+        // Net wiggle wobble
+        Animated.sequence([
+          Animated.timing(netWiggle, { toValue: 1.5, duration: 110, useNativeDriver: true }),
+          Animated.timing(netWiggle, { toValue: 0.8, duration: 110, useNativeDriver: true }),
+          Animated.timing(netWiggle, { toValue: 1.15, duration: 110, useNativeDriver: true }),
+          Animated.timing(netWiggle, { toValue: 1, duration: 110, useNativeDriver: true }),
         ]).start();
+        triggerBurstAndText();
       });
-    } else {
-      // 🏸 BADMINTON / 🏓 PICKLEBALL / TABLE TENNIS SMASH & HIT SEQUENCE
+    } else if (sportType === 'BADMINTON') {
+      // 🏸 BADMINTON: RACQUET POWER SMASH & FEATHERED SHUTTLECOCK METEOR SMASH
       Animated.sequence([
-        // Racquet windup
+        // Racquet backswing windup
         Animated.timing(racquetRotate, {
-          toValue: -50,
-          duration: 250,
+          toValue: -60,
+          duration: 220,
           useNativeDriver: true,
         }),
-        // Fast smash forward + strike
+        // Explosive forward smash strike + high speed shuttlecock flight
         Animated.parallel([
           Animated.timing(racquetRotate, {
-            toValue: 20,
-            duration: 180,
+            toValue: 25,
+            duration: 160,
             easing: Easing.in(Easing.quad),
             useNativeDriver: true,
           }),
           Animated.timing(ballTranslateX, {
-            toValue: 70,
-            duration: 450,
+            toValue: 80,
+            duration: 380,
             easing: Easing.out(Easing.quad),
             useNativeDriver: true,
           }),
           Animated.timing(ballTranslateY, {
-            toValue: -20,
-            duration: 450,
+            toValue: -25,
+            duration: 380,
             useNativeDriver: true,
           }),
         ]),
       ]).start(() => {
-        // Burst & text
+        triggerBurstAndText();
+      });
+    } else if (sportType === 'PICKLEBALL') {
+      // 🏓 PICKLEBALL: SIGNATURE TOP-SPIN GROUNDSTROKE & WIFFLE BALL BOUNCE OVER NET
+      Animated.sequence([
+        // Paddle backswing
+        Animated.timing(racquetRotate, {
+          toValue: -40,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        // Paddle drives through ball
         Animated.parallel([
-          Animated.timing(impactScale, {
-            toValue: 2,
-            duration: 300,
+          Animated.timing(racquetRotate, {
+            toValue: 20,
+            duration: 180,
+            easing: Easing.out(Easing.cubic),
             useNativeDriver: true,
           }),
-          Animated.timing(impactOpacity, {
-            toValue: 1,
-            duration: 100,
+          // Ball dips into court bounce
+          Animated.timing(ballTranslateX, {
+            toValue: -10,
+            duration: 250,
+            easing: Easing.linear,
             useNativeDriver: true,
           }),
-          Animated.timing(confettiAnim, {
+          Animated.timing(ballTranslateY, {
+            toValue: 50, // Bounces off court
+            duration: 250,
+            easing: Easing.in(Easing.quad),
+            useNativeDriver: true,
+          }),
+          Animated.timing(ballRotate, {
             toValue: 1,
             duration: 500,
             useNativeDriver: true,
           }),
-          Animated.timing(textSlideAnim, {
-            toValue: 0,
-            duration: 300,
+        ]),
+        // Ball bounces UP and CLEARS the low pickleball net to the backline
+        Animated.parallel([
+          Animated.timing(ballTranslateX, {
+            toValue: 75,
+            duration: 350,
+            easing: Easing.out(Easing.quad),
             useNativeDriver: true,
           }),
-          Animated.timing(textOpacityAnim, {
-            toValue: 1,
-            duration: 300,
+          Animated.timing(ballTranslateY, {
+            toValue: 15,
+            duration: 350,
+            easing: Easing.out(Easing.quad),
             useNativeDriver: true,
           }),
-        ]).start(() => {
-          Animated.timing(impactOpacity, {
-            toValue: 0,
-            duration: 200,
+        ]),
+      ]).start(() => {
+        triggerBurstAndText();
+      });
+    } else {
+      // 🏓 TABLE TENNIS: DUAL BOUNCE RALLY ACROSS AUTHENTIC BLUE PING PONG TABLE
+      Animated.sequence([
+        // 1. Forehand loop windup
+        Animated.timing(racquetRotate, {
+          toValue: -45,
+          duration: 180,
+          useNativeDriver: true,
+        }),
+        // 2. Forehand strike -> Ball bounces on home side
+        Animated.parallel([
+          Animated.timing(racquetRotate, {
+            toValue: 20,
+            duration: 150,
             useNativeDriver: true,
-          }).start();
-        });
+          }),
+          Animated.timing(ballTranslateX, {
+            toValue: -35,
+            duration: 220,
+            useNativeDriver: true,
+          }),
+          Animated.timing(ballTranslateY, {
+            toValue: 42, // Table surface bounce 1
+            duration: 220,
+            easing: Easing.in(Easing.quad),
+            useNativeDriver: true,
+          }),
+        ]),
+        // 3. Ball leaps over center ping pong net and bounces on opponent side
+        Animated.parallel([
+          Animated.timing(ballTranslateX, {
+            toValue: 65,
+            duration: 320,
+            useNativeDriver: true,
+          }),
+          Animated.timing(ballTranslateY, {
+            toValue: 35, // Table surface bounce 2
+            duration: 320,
+            easing: Easing.out(Easing.quad),
+            useNativeDriver: true,
+          }),
+          Animated.timing(ballScale, {
+            toValue: 0.75,
+            duration: 320,
+            useNativeDriver: true,
+          }),
+        ]),
+      ]).start(() => {
+        triggerBurstAndText();
       });
     }
   }, [visible, sportType]);
@@ -256,16 +320,27 @@ export function BookingSuccessAnimationModal({
       case 'BADMINTON':
         return 'SMASH! 🏸';
       case 'PICKLEBALL':
-        return 'ACE! 🏓';
+        return 'DINK & SMASH! 🏓';
       case 'TABLE_TENNIS':
-        return 'GAME ON! 🏓';
+        return 'PING PONG ACE! 🏓';
       default:
         return 'GAME ON! 🏆';
     }
   };
 
   const getCelebrationSubtitle = () => {
-    return `${booking.facilityName || 'Court'} Booked!`;
+    switch (sportType) {
+      case 'BASKETBALL':
+        return `${booking.facilityName || 'Basketball Arena'} Booked!`;
+      case 'BADMINTON':
+        return `${booking.facilityName || 'Badminton Court'} Booked!`;
+      case 'PICKLEBALL':
+        return `${booking.facilityName || 'Pickleball Court'} Booked!`;
+      case 'TABLE_TENNIS':
+        return `${booking.facilityName || 'Table Tennis Arena'} Booked!`;
+      default:
+        return `${booking.facilityName || 'Court'} Booked!`;
+    }
   };
 
   return (
@@ -278,11 +353,11 @@ export function BookingSuccessAnimationModal({
               const rad = (angle * Math.PI) / 180;
               const tx = confettiAnim.interpolate({
                 inputRange: [0, 1],
-                outputRange: [0, Math.cos(rad) * 95],
+                outputRange: [0, Math.cos(rad) * 105],
               });
               const ty = confettiAnim.interpolate({
                 inputRange: [0, 1],
-                outputRange: [0, Math.sin(rad) * 95],
+                outputRange: [0, Math.sin(rad) * 105],
               });
               const opacity = confettiAnim.interpolate({
                 inputRange: [0, 0.7, 1],
@@ -307,12 +382,14 @@ export function BookingSuccessAnimationModal({
             })}
           </View>
 
-          {/* Sports Animation Arena */}
+          {/* Sports Specific Animation Arena */}
           <View style={styles.arenaContainer}>
             {sportType === 'BASKETBALL' ? (
-              // 🏀 BASKETBALL ARENA (Hoop, Backboard, Swishing Ball)
+              /* 🏀 1. BASKETBALL ARENA (Glass Backboard, Orange Rim, Wiggling Net, Flying Basketball) */
               <View style={styles.basketballStage}>
-                {/* Backboard & Target */}
+                <View style={styles.courtFloorLine} />
+
+                {/* Backboard & Shooter Box */}
                 <View style={styles.backboard}>
                   <View style={styles.targetSquare} />
                 </View>
@@ -322,10 +399,7 @@ export function BookingSuccessAnimationModal({
                   <View style={styles.orangeRim} />
                   {/* Wiggling Net */}
                   <Animated.View
-                    style={[
-                      styles.basketballNet,
-                      { transform: [{ scaleY: netWiggle }] },
-                    ]}
+                    style={[styles.basketballNet, { transform: [{ scaleY: netWiggle }] }]}
                   >
                     <View style={styles.netLineLeft} />
                     <View style={styles.netLineRight} />
@@ -351,93 +425,121 @@ export function BookingSuccessAnimationModal({
                   <View style={styles.ballSeamVertical} />
                 </Animated.View>
 
-                {/* Swish Impact Shockwave */}
+                {/* Swish Shockwave */}
                 <Animated.View
                   style={[
                     styles.swishShockwave,
-                    {
-                      opacity: impactOpacity,
-                      transform: [{ scale: impactScale }],
-                    },
+                    { opacity: impactOpacity, transform: [{ scale: impactScale }] },
                   ]}
                 />
               </View>
             ) : sportType === 'BADMINTON' ? (
-              // 🏸 BADMINTON SMASH ARENA
+              /* 🏸 2. BADMINTON ARENA (Emerald Court, High Net, Racquet Smash, Feathered Shuttlecock) */
               <View style={styles.badmintonStage}>
-                {/* Swinging Racquet */}
+                {/* Court Floor Line */}
+                <View style={styles.badmintonFloor} />
+
+                {/* Swinging Carbon Badminton Racquet */}
                 <Animated.View
                   style={[
                     styles.badmintonRacquet,
                     {
                       transform: [
-                        { translateX: -60 },
-                        { translateY: 40 },
-                        { rotate: racquetRotate.interpolate({
-                            inputRange: [-50, 20],
-                            outputRange: ['-50deg', '20deg'],
-                          })
-                        },
-                      ],
-                    },
-                  ]}
-                >
-                  <View style={styles.racquetHead} />
-                  <View style={styles.racquetShaft} />
-                  <View style={styles.racquetGrip} />
-                </Animated.View>
-
-                {/* Smashed Flying Shuttlecock */}
-                <Animated.View
-                  style={[
-                    styles.shuttlecock,
-                    {
-                      transform: [
-                        { translateX: ballTranslateX },
-                        { translateY: ballTranslateY },
-                        { rotate: '45deg' },
-                      ],
-                    },
-                  ]}
-                >
-                  <View style={styles.shuttleFeathers} />
-                  <View style={styles.shuttleCork} />
-                </Animated.View>
-
-                {/* Court Net */}
-                <View style={styles.badmintonNet}>
-                  <View style={styles.netWhiteTape} />
-                </View>
-              </View>
-            ) : (
-              // 🏓 PICKLEBALL / TABLE TENNIS ARENA
-              <View style={styles.pickleballStage}>
-                {/* Paddle */}
-                <Animated.View
-                  style={[
-                    styles.paddleWrapper,
-                    {
-                      transform: [
-                        { translateX: -50 },
-                        { translateY: 30 },
+                        { translateX: -65 },
+                        { translateY: 38 },
                         {
                           rotate: racquetRotate.interpolate({
-                            inputRange: [-50, 20],
-                            outputRange: ['-40deg', '15deg'],
+                            inputRange: [-60, 25],
+                            outputRange: ['-60deg', '25deg'],
                           }),
                         },
                       ],
                     },
                   ]}
                 >
-                  <View style={styles.paddleHead} />
-                  <View style={styles.paddleHandle} />
+                  <View style={styles.racquetHead}>
+                    <View style={styles.racquetStringV} />
+                    <View style={styles.racquetStringH} />
+                  </View>
+                  <View style={styles.racquetShaft} />
+                  <View style={styles.racquetGrip} />
                 </Animated.View>
 
-                {/* Neon Wiffle Ball */}
+                {/* High Regulation Badminton Net */}
+                <View style={styles.badmintonHighNet}>
+                  <View style={styles.badmintonNetTopTape} />
+                  <View style={styles.badmintonNetMeshPattern} />
+                  <View style={styles.badmintonNetPost} />
+                </View>
+
+                {/* Smashed Flying Shuttlecock with Feather Skirt & Cork Base */}
                 <Animated.View
                   style={[
-                    styles.pickleballBall,
+                    styles.shuttlecockWrap,
+                    {
+                      transform: [
+                        { translateX: ballTranslateX },
+                        { translateY: ballTranslateY },
+                        { rotate: '42deg' },
+                      ],
+                    },
+                  ]}
+                >
+                  <View style={styles.shuttleFeathers} />
+                  <View style={styles.shuttleRibbon} />
+                  <View style={styles.shuttleCork} />
+                </Animated.View>
+
+                {/* Smash Speed Shockwave */}
+                <Animated.View
+                  style={[
+                    styles.badmintonImpactShock,
+                    { opacity: impactOpacity, transform: [{ scale: impactScale }] },
+                  ]}
+                />
+              </View>
+            ) : sportType === 'PICKLEBALL' ? (
+              /* 🏓 3. PICKLEBALL ARENA (Ocean Blue Court, Kitchen Line, Low 34" Net, Neon Lime Wiffle Ball) */
+              <View style={styles.pickleballStage}>
+                {/* Acrylic Court Line */}
+                <View style={styles.pickleballCourtFloor}>
+                  <View style={styles.pickleballKitchenLine} />
+                </View>
+
+                {/* Pickleball Paddle */}
+                <Animated.View
+                  style={[
+                    styles.pickleballPaddleWrap,
+                    {
+                      transform: [
+                        { translateX: -60 },
+                        { translateY: 26 },
+                        {
+                          rotate: racquetRotate.interpolate({
+                            inputRange: [-40, 20],
+                            outputRange: ['-35deg', '18deg'],
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
+                >
+                  <View style={styles.pickleballPaddleHead}>
+                    <View style={styles.paddleEdgeGuard} />
+                  </View>
+                  <View style={styles.pickleballPaddleHandle} />
+                </Animated.View>
+
+                {/* Regulation 34-inch Center Net */}
+                <View style={styles.pickleballNet}>
+                  <View style={styles.pickleballNetTape} />
+                  <View style={styles.pickleballNetCenterStrap} />
+                </View>
+
+                {/* Perforated Neon-Lime Wiffle Ball */}
+                <Animated.View
+                  style={[
+                    styles.wiffleBall,
                     {
                       transform: [
                         { translateX: ballTranslateX },
@@ -447,12 +549,75 @@ export function BookingSuccessAnimationModal({
                     },
                   ]}
                 >
-                  <View style={styles.wiffleDot1} />
-                  <View style={styles.wiffleDot2} />
+                  <View style={styles.wiffleHole1} />
+                  <View style={styles.wiffleHole2} />
+                  <View style={styles.wiffleHole3} />
+                  <View style={styles.wiffleHole4} />
                 </Animated.View>
 
-                {/* Table / Court Net */}
-                <View style={styles.miniNetLine} />
+                {/* Bounce Shockwave */}
+                <Animated.View
+                  style={[
+                    styles.pickleballImpactShock,
+                    { opacity: impactOpacity, transform: [{ scale: impactScale }] },
+                  ]}
+                />
+              </View>
+            ) : (
+              /* 🏓 4. TABLE TENNIS ARENA (ITTF Blue Table, White Center Line, Red Ping Pong Bat, White Ball) */
+              <View style={styles.tableTennisStage}>
+                {/* Ping Pong Table Top */}
+                <View style={styles.pingPongTable}>
+                  <View style={styles.pingPongCenterLine} />
+                  {/* Table Tennis Net */}
+                  <View style={styles.pingPongNet}>
+                    <View style={styles.pingPongNetTopWhite} />
+                  </View>
+                </View>
+
+                {/* Red Ping Pong Paddle */}
+                <Animated.View
+                  style={[
+                    styles.pingPongPaddleWrap,
+                    {
+                      transform: [
+                        { translateX: -65 },
+                        { translateY: 22 },
+                        {
+                          rotate: racquetRotate.interpolate({
+                            inputRange: [-45, 20],
+                            outputRange: ['-45deg', '15deg'],
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
+                >
+                  <View style={styles.pingPongRubberRed} />
+                  <View style={styles.pingPongWoodHandle} />
+                </Animated.View>
+
+                {/* White Celluloid Ball with Double Bounce */}
+                <Animated.View
+                  style={[
+                    styles.pingPongBall,
+                    {
+                      transform: [
+                        { translateX: ballTranslateX },
+                        { translateY: ballTranslateY },
+                        { scale: ballScale },
+                      ],
+                    },
+                  ]}
+                />
+
+                {/* Ping Pong Strike Shockwave */}
+                <Animated.View
+                  style={[
+                    styles.pingPongImpactShock,
+                    { opacity: impactOpacity, transform: [{ scale: impactScale }] },
+                  ]}
+                />
               </View>
             )}
           </View>
@@ -500,7 +665,7 @@ function createStyles(Colors: ColorTokens, isDark: boolean) {
   return StyleSheet.create({
     overlay: {
       flex: 1,
-      backgroundColor: 'rgba(0, 0, 0, 0.85)',
+      backgroundColor: 'rgba(0, 0, 0, 0.88)',
       justifyContent: 'center',
       alignItems: 'center',
       padding: 20,
@@ -544,13 +709,21 @@ function createStyles(Colors: ColorTokens, isDark: boolean) {
       justifyContent: 'center',
       marginBottom: 10,
     },
-    // 🏀 Basketball Styles
+    // 🏀 1. Basketball Styles
     basketballStage: {
       width: 240,
       height: 180,
       position: 'relative',
       alignItems: 'center',
       justifyContent: 'center',
+    },
+    courtFloorLine: {
+      position: 'absolute',
+      bottom: 15,
+      left: 10,
+      right: 10,
+      height: 2,
+      backgroundColor: 'rgba(234, 88, 12, 0.4)',
     },
     backboard: {
       position: 'absolute',
@@ -657,7 +830,8 @@ function createStyles(Colors: ColorTokens, isDark: boolean) {
       borderWidth: 2,
       borderColor: '#F59E0B',
     },
-    // 🏸 Badminton Styles
+
+    // 🏸 2. Badminton Styles
     badmintonStage: {
       width: 240,
       height: 180,
@@ -665,30 +839,81 @@ function createStyles(Colors: ColorTokens, isDark: boolean) {
       alignItems: 'center',
       justifyContent: 'center',
     },
+    badmintonFloor: {
+      position: 'absolute',
+      bottom: 18,
+      left: 15,
+      right: 15,
+      height: 4,
+      backgroundColor: '#10B981',
+      borderRadius: 2,
+    },
     badmintonRacquet: {
       position: 'absolute',
       alignItems: 'center',
     },
     racquetHead: {
-      width: 32,
-      height: 40,
-      borderRadius: 16,
+      width: 34,
+      height: 42,
+      borderRadius: 17,
       borderWidth: 2,
       borderColor: '#38BDF8',
-      backgroundColor: 'rgba(56, 189, 248, 0.1)',
+      backgroundColor: 'rgba(56, 189, 248, 0.12)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    racquetStringV: {
+      position: 'absolute',
+      width: 1,
+      height: '80%',
+      backgroundColor: '#93C5FD',
+    },
+    racquetStringH: {
+      position: 'absolute',
+      height: 1,
+      width: '80%',
+      backgroundColor: '#93C5FD',
     },
     racquetShaft: {
-      width: 2,
-      height: 34,
+      width: 2.5,
+      height: 36,
       backgroundColor: '#94A3B8',
     },
     racquetGrip: {
       width: 6,
-      height: 16,
+      height: 18,
       backgroundColor: '#1E293B',
       borderRadius: 2,
     },
-    shuttlecock: {
+    badmintonHighNet: {
+      position: 'absolute',
+      right: 36,
+      bottom: 18,
+      width: 6,
+      height: 100,
+      backgroundColor: '#64748B',
+      alignItems: 'center',
+    },
+    badmintonNetTopTape: {
+      width: 14,
+      height: 8,
+      backgroundColor: '#FFFFFF',
+      borderRadius: 2,
+    },
+    badmintonNetMeshPattern: {
+      width: 4,
+      height: 70,
+      backgroundColor: 'rgba(255, 255, 255, 0.3)',
+      marginTop: 2,
+    },
+    badmintonNetPost: {
+      position: 'absolute',
+      bottom: 0,
+      width: 10,
+      height: 6,
+      backgroundColor: '#334155',
+    },
+    shuttlecockWrap: {
       position: 'absolute',
       alignItems: 'center',
     },
@@ -699,34 +924,37 @@ function createStyles(Colors: ColorTokens, isDark: boolean) {
       borderStyle: 'solid',
       borderLeftWidth: 10,
       borderRightWidth: 10,
-      borderTopWidth: 20,
+      borderTopWidth: 22,
       borderLeftColor: 'transparent',
       borderRightColor: 'transparent',
       borderTopColor: '#FFFFFF',
     },
+    shuttleRibbon: {
+      width: 14,
+      height: 3,
+      backgroundColor: '#38BDF8',
+      marginTop: -4,
+    },
     shuttleCork: {
-      width: 12,
-      height: 10,
-      borderRadius: 5,
-      backgroundColor: '#E2E8F0',
+      width: 13,
+      height: 11,
+      borderRadius: 6,
+      backgroundColor: '#F1F5F9',
       borderWidth: 1,
       borderColor: '#94A3B8',
-      marginTop: -2,
     },
-    badmintonNet: {
+    badmintonImpactShock: {
       position: 'absolute',
-      right: 30,
-      width: 4,
-      height: 90,
-      backgroundColor: '#64748B',
+      right: 28,
+      top: 55,
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      borderWidth: 2,
+      borderColor: '#38BDF8',
     },
-    netWhiteTape: {
-      width: 8,
-      height: 8,
-      backgroundColor: '#FFFFFF',
-      marginLeft: -2,
-    },
-    // 🏓 Pickleball / Table Tennis Styles
+
+    // 🏓 3. Pickleball Styles
     pickleballStage: {
       width: 240,
       height: 180,
@@ -734,107 +962,271 @@ function createStyles(Colors: ColorTokens, isDark: boolean) {
       alignItems: 'center',
       justifyContent: 'center',
     },
-    paddleWrapper: {
+    pickleballCourtFloor: {
+      position: 'absolute',
+      bottom: 20,
+      left: 10,
+      right: 10,
+      height: 5,
+      backgroundColor: '#0284C7',
+      borderRadius: 2,
+    },
+    pickleballKitchenLine: {
+      position: 'absolute',
+      left: 50,
+      right: 50,
+      height: 2,
+      backgroundColor: '#FFFFFF',
+      top: 1,
+    },
+    pickleballPaddleWrap: {
       position: 'absolute',
       alignItems: 'center',
     },
-    paddleHead: {
-      width: 36,
-      height: 44,
-      borderRadius: 10,
-      backgroundColor: '#0D9488',
+    pickleballPaddleHead: {
+      width: 38,
+      height: 46,
+      borderRadius: 12,
+      backgroundColor: '#0F766E',
       borderWidth: 2,
       borderColor: '#14B8A6',
+      alignItems: 'center',
+      justifyContent: 'center',
     },
-    paddleHandle: {
-      width: 6,
+    paddleEdgeGuard: {
+      width: 32,
+      height: 40,
+      borderRadius: 9,
+      borderWidth: 1.5,
+      borderColor: '#0D9488',
+    },
+    pickleballPaddleHandle: {
+      width: 7,
       height: 22,
       backgroundColor: '#D97706',
       borderRadius: 2,
     },
-    pickleballBall: {
+    pickleballNet: {
       position: 'absolute',
-      width: 26,
-      height: 26,
-      borderRadius: 13,
-      backgroundColor: '#84CC16',
-      borderWidth: 1,
+      right: 32,
+      bottom: 20,
+      width: 5,
+      height: 60,
+      backgroundColor: '#475569',
+      alignItems: 'center',
+    },
+    pickleballNetTape: {
+      width: 12,
+      height: 6,
+      backgroundColor: '#FFFFFF',
+    },
+    pickleballNetCenterStrap: {
+      width: 2,
+      height: 54,
+      backgroundColor: '#94A3B8',
+    },
+    wiffleBall: {
+      position: 'absolute',
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      backgroundColor: '#A3E635',
+      borderWidth: 1.5,
       borderColor: '#65A30D',
       alignItems: 'center',
       justifyContent: 'center',
+      shadowColor: '#A3E635',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.5,
+      shadowRadius: 4,
+      elevation: 3,
     },
-    wiffleDot1: {
+    wiffleHole1: {
+      position: 'absolute',
       width: 4,
       height: 4,
       borderRadius: 2,
       backgroundColor: '#4D7C0F',
+      top: 5,
+      left: 6,
     },
-    wiffleDot2: {
-      width: 3,
-      height: 3,
-      borderRadius: 1.5,
-      backgroundColor: '#4D7C0F',
-      marginTop: 2,
-    },
-    miniNetLine: {
+    wiffleHole2: {
       position: 'absolute',
-      right: 35,
-      width: 3,
-      height: 70,
-      backgroundColor: '#94A3B8',
+      width: 4,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: '#4D7C0F',
+      top: 6,
+      right: 6,
     },
+    wiffleHole3: {
+      position: 'absolute',
+      width: 4,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: '#4D7C0F',
+      bottom: 5,
+      left: 7,
+    },
+    wiffleHole4: {
+      position: 'absolute',
+      width: 4,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: '#4D7C0F',
+      bottom: 5,
+      right: 7,
+    },
+    pickleballImpactShock: {
+      position: 'absolute',
+      right: 26,
+      top: 80,
+      width: 46,
+      height: 46,
+      borderRadius: 23,
+      borderWidth: 2,
+      borderColor: '#84CC16',
+    },
+
+    // 🏓 4. Table Tennis Styles
+    tableTennisStage: {
+      width: 240,
+      height: 180,
+      position: 'relative',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    pingPongTable: {
+      position: 'absolute',
+      bottom: 30,
+      width: 210,
+      height: 12,
+      backgroundColor: '#1E40AF',
+      borderWidth: 1.5,
+      borderColor: '#FFFFFF',
+      borderRadius: 2,
+      alignItems: 'center',
+    },
+    pingPongCenterLine: {
+      position: 'absolute',
+      top: 0,
+      bottom: 0,
+      width: 2,
+      backgroundColor: '#FFFFFF',
+    },
+    pingPongNet: {
+      position: 'absolute',
+      top: -26,
+      width: 4,
+      height: 26,
+      backgroundColor: '#1E293B',
+      alignItems: 'center',
+    },
+    pingPongNetTopWhite: {
+      width: 10,
+      height: 4,
+      backgroundColor: '#FFFFFF',
+    },
+    pingPongPaddleWrap: {
+      position: 'absolute',
+      alignItems: 'center',
+    },
+    pingPongRubberRed: {
+      width: 36,
+      height: 40,
+      borderRadius: 18,
+      backgroundColor: '#DC2626',
+      borderWidth: 2,
+      borderColor: '#B91C1C',
+      shadowColor: '#DC2626',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.4,
+      shadowRadius: 3,
+    },
+    pingPongWoodHandle: {
+      width: 7,
+      height: 20,
+      backgroundColor: '#B45309',
+      borderRadius: 2,
+    },
+    pingPongBall: {
+      position: 'absolute',
+      width: 18,
+      height: 18,
+      borderRadius: 9,
+      backgroundColor: '#FFFFFF',
+      borderWidth: 1,
+      borderColor: '#CBD5E1',
+      shadowColor: '#FFFFFF',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.6,
+      shadowRadius: 3,
+      elevation: 2,
+    },
+    pingPongImpactShock: {
+      position: 'absolute',
+      right: 38,
+      top: 75,
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      borderWidth: 2,
+      borderColor: '#38BDF8',
+    },
+
     // Text & Actions
     textContainer: {
       alignItems: 'center',
       width: '100%',
     },
     celebrationTitle: {
-      fontSize: 28,
+      fontSize: 26,
       fontWeight: '900',
       color: Colors.text.primary,
       letterSpacing: 0.5,
       textAlign: 'center',
     },
     celebrationSubtitle: {
-      fontSize: 15,
+      fontSize: 14,
       fontWeight: '700',
-      color: isDark ? '#A78BFA' : Colors.primary.main,
+      color: isDark ? '#38BDF8' : Colors.primary.main,
       marginTop: 4,
-      marginBottom: 16,
       textAlign: 'center',
     },
     bookingBadgeRow: {
       flexDirection: 'row',
-      alignItems: 'center',
-      gap: 12,
-      backgroundColor: isDark ? '#111827' : 'rgba(15, 23, 42, 0.04)',
-      paddingHorizontal: 14,
-      paddingVertical: 8,
-      borderRadius: 12,
-      marginBottom: 20,
+      gap: 8,
+      marginTop: 12,
+      marginBottom: 16,
     },
     badgeItem: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 5,
+      backgroundColor: isDark ? '#111827' : 'rgba(15, 23, 42, 0.05)',
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: Colors.border.subtle,
     },
     badgeItemText: {
-      color: Colors.text.primary,
       fontSize: 12,
       fontWeight: '600',
+      color: Colors.text.secondary,
     },
     proceedButton: {
+      width: '100%',
+      backgroundColor: Colors.primary.main,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
       gap: 8,
-      backgroundColor: Colors.primary.main,
-      width: '100%',
       paddingVertical: 14,
       borderRadius: 16,
       shadowColor: Colors.primary.main,
       shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.4,
+      shadowOpacity: 0.3,
       shadowRadius: 8,
       elevation: 4,
     },

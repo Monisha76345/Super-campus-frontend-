@@ -21,6 +21,7 @@ import {
   CAMPUS_SPORTS_LIST,
   ChooseSportModal,
 } from './components/sports/ChooseSportModal';
+import { AdminSportsControlsModal } from './components/sports/AdminSportsControlsModal';
 import { BookingSuccessAnimationModal } from './components/sports/BookingSuccessAnimationModal';
 import { CourtPassModal } from './components/sports/CourtPassModal';
 import { FindPlayersModal } from './components/sports/FindPlayersModal';
@@ -71,11 +72,19 @@ export function SportsScreen() {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
+  const roleNorm = (user?.role || '').toLowerCase();
+  const isAdmin =
+    roleNorm === 'admin' ||
+    roleNorm === 'superadmin' ||
+    roleNorm === 'campus_admin' ||
+    roleNorm === 'faculty';
+
   // Modals & sport preselection
   const [chooseSportVisible, setChooseSportVisible] = useState(false);
   const [selectedSportForBooking, setSelectedSportForBooking] = useState<SportType | null>(null);
   const [findPlayersVisible, setFindPlayersVisible] = useState(false);
   const [myBookingsVisible, setMyBookingsVisible] = useState(false);
+  const [adminControlsVisible, setAdminControlsVisible] = useState(false);
   const [activePassBooking, setActivePassBooking] = useState<SportsBooking | null>(null);
   const [celebrationBooking, setCelebrationBooking] = useState<SportsBooking | null>(null);
 
@@ -132,6 +141,16 @@ export function SportsScreen() {
           <Ionicons name="arrow-back" size={24} color={Colors.text.primary} />
         </Pressable>
         <Text style={styles.topNavTitle}>Sports</Text>
+        <View style={{ flex: 1 }} />
+        {isAdmin && (
+          <Pressable
+            onPress={() => setAdminControlsVisible(true)}
+            style={styles.adminNavBtn}
+          >
+            <Ionicons name="shield-checkmark" size={13} color="#38BDF8" />
+            <Text style={styles.adminNavBtnText}>Admin Settings</Text>
+          </Pressable>
+        )}
       </View>
 
       <ScrollView
@@ -360,6 +379,14 @@ export function SportsScreen() {
         onCancelBooking={handleCancelBooking}
       />
 
+      <AdminSportsControlsModal
+        visible={adminControlsVisible}
+        onClose={() => setAdminControlsVisible(false)}
+        token={token}
+        tenantId={tenantId}
+        onUpdated={loadData}
+      />
+
       {/* Frosted Bottom Navigation Bar */}
       <HomeBottomTabs activeTab="services" onTabChange={(tab) => openTab(router, tab)} />
     </View>
@@ -386,6 +413,22 @@ function createStyles(Colors: ColorTokens, isDark: boolean) {
       fontSize: 20,
       fontWeight: '800',
       color: Colors.text.primary,
+    },
+    adminNavBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: 8,
+      backgroundColor: 'rgba(56, 189, 248, 0.12)',
+      borderWidth: 1,
+      borderColor: 'rgba(56, 189, 248, 0.35)',
+    },
+    adminNavBtnText: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: '#38BDF8',
     },
     scrollBody: {
       paddingHorizontal: 16,

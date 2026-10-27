@@ -72,6 +72,7 @@ export function ProfileScreen() {
   const [editingExperienceId, setEditingExperienceId] = useState<string | null>(null);
   const [skillDraft, setSkillDraft] = useState('');
   const [showCsvModal, setShowCsvModal] = useState(false);
+  const [photoPromptShown, setPhotoPromptShown] = useState(false);
 
   const role = (user?.role || '').toLowerCase();
   const isAdmin = role === 'admin' || role === 'campus_admin' || role === 'superadmin';
@@ -114,13 +115,45 @@ export function ProfileScreen() {
     }
     setError(null);
     try {
-      setProfile(await profileApi.getMine({ token, tenantId }));
+      const res = await profileApi.getMine({ token, tenantId });
+
+      // Apply all available details in the starting itself from directory & session
+      const [first, ...rest] = (user?.fullName || '').trim().split(/\s+/);
+      const enriched: CampusProfile = {
+        ...res,
+        firstName: res.firstName || first || null,
+        lastName: res.lastName || (rest.length ? rest.join(' ') : null),
+        collegeEmail: res.collegeEmail || user?.email || '',
+        department: res.department || (user as any)?.department || 'Computer Science & Engineering',
+        batch: res.batch || (user as any)?.batch || (res.graduationYear ? String(res.graduationYear) : '2025'),
+        role: res.role || user?.role || 'STUDENT',
+        residency:
+          res.residency !== ResidencyStatus.NotSet
+            ? res.residency
+            : user?.hostelite
+              ? ResidencyStatus.HostelResident
+              : ResidencyStatus.DayScholar,
+        graduationYear: res.graduationYear || (res.batch ? Number(res.batch) : 2025),
+        bio:
+          res.bio ||
+          `${res.role || user?.role || 'Student'} at ${user?.campusName || 'Campus'} · ${res.department || (user as any)?.department || 'Engineering'}`,
+      };
+
+      setProfile(enriched);
+
+      // Prompt mandatory profile photo if missing on first load
+      if (!enriched.photoKey && !photoPromptShown) {
+        setPhotoPromptShown(true);
+        setTimeout(() => {
+          setSheet('photo');
+        }, 600);
+      }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Profile could not be loaded');
     } finally {
       setLoading(false);
     }
-  }, [token, tenantId, isReady]);
+  }, [token, tenantId, isReady, user, photoPromptShown]);
 
   useEffect(() => {
     load().catch(() => undefined);
@@ -161,13 +194,41 @@ export function ProfileScreen() {
     if (picked.canceled || !asset) {
       return;
     }
-    await run(() => profileApi.uploadPhoto(auth, asset.uri, asset.mimeType));
+    const updated = await run(() => profileApi.uploadPhoto(auth, asset.uri, asset.mimeType));
+    if (draft && updated) {
+      setDraft((prev) => (prev ? { ...prev, photoKey: updated.photoKey, photoDocumentId: updated.photoDocumentId } : null));
+    }
   };
 
   const saveProfile = () => {
     if (!auth || !draft) {
       return;
     }
+
+    // Mandatory Profile Photo validation
+    if (!draft.photoKey && !profile?.photoKey) {
+      Alert.alert(
+        'Profile Photo Mandatory',
+        'A profile photo is mandatory. Please take a photo with your camera or select one from your gallery before saving.',
+        [
+          { text: 'Take Photo', onPress: () => pickPhoto('camera') },
+          { text: 'Choose from Gallery', onPress: () => pickPhoto('library') },
+          { text: 'Cancel', style: 'cancel' },
+        ],
+      );
+      return;
+    }
+
+    if (!draft.firstName?.trim() || !draft.lastName?.trim()) {
+      Alert.alert('Required Fields', 'First name and last name are required.');
+      return;
+    }
+
+    if (!draft.usn?.trim()) {
+      Alert.alert('Required Fields', 'USN / Student ID is required.');
+      return;
+    }
+
     const year = draft.graduationYear ?? undefined;
     run(() =>
       profileApi.updateMine(auth, {
@@ -178,8 +239,19 @@ export function ProfileScreen() {
         visibility: draft.visibility,
         residency: draft.residency,
         bio: draft.bio ?? '',
+        department: draft.department ?? undefined,
+        batch: draft.batch ?? undefined,
+        usn: draft.usn ?? undefined,
+        collegeEmail: draft.collegeEmail ?? undefined,
       }),
-    ).catch(() => undefined);
+    )
+      .then(() => {
+        setSheet(null);
+        Alert.alert('Profile Saved', 'Your profile details and verified photo have been successfully applied.');
+      })
+      .catch((err) => {
+        Alert.alert('Could Not Save', err instanceof Error ? err.message : 'Could not save profile.');
+      });
   };
 
   const saveEducation = () => {
@@ -355,7 +427,7 @@ export function ProfileScreen() {
               accessibilityRole="button"
               accessibilityLabel="Change profile photo"
               onPress={() => setSheet('photo')}
-              style={styles.avatarWrap}>
+              style={[styles.avatarWrap, !profile?.photoKey && styles.avatarMissingPhoto]}>
               {photoUri && auth ? (
                 <Image
                   source={{
@@ -372,9 +444,14 @@ export function ProfileScreen() {
                   <Text style={styles.avatarInitial}>{initial}</Text>
                 </View>
               )}
-              <View style={styles.cameraBadge}>
+              <View style={[styles.cameraBadge, !profile?.photoKey && { backgroundColor: '#EF4444' }]}>
                 <Ionicons name="camera" size={12} color="#FFFFFF" />
               </View>
+              {!profile?.photoKey ? (
+                <View style={styles.photoMandatoryBadge}>
+                  <Text style={styles.photoMandatoryBadgeText}>Photo Required *</Text>
+                </View>
+              ) : null}
             </Pressable>
 
             <Text style={styles.heroName}>{name}</Text>
@@ -406,6 +483,98 @@ export function ProfileScreen() {
         <View style={styles.contentBody}>
           {error ? <Text style={styles.error}>{error}</Text> : null}
           {loading ? <ActivityIndicator color={Colors.primary.light} style={styles.loader} /> : null}
+
+          {/* Mandatory Profile Photo Alert Banner if photo is missing */}
+          {!profile?.photoKey ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Upload Mandatory Profile Photo"
+              style={styles.mandatoryPhotoBanner}
+              onPress={() => setSheet('photo')}
+            >
+              <View style={styles.mandatoryPhotoIconWrap}>
+                <Ionicons name="camera" size={24} color="#EF4444" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.mandatoryPhotoTitle}>Action Required: Profile Photo Mandatory</Text>
+                <Text style={styles.mandatoryPhotoSubtitle}>
+                  A profile photo is mandatory. Tap here to upload using camera or gallery to verify your student profile.
+                </Text>
+              </View>
+              <View style={styles.mandatoryUploadBtn}>
+                <Text style={styles.mandatoryUploadBtnText}>Upload Photo</Text>
+              </View>
+            </Pressable>
+          ) : null}
+
+          {/* 1. Campus Identity & Academic Details Card (all available details applied) */}
+          <View style={styles.sectionCard}>
+            <View style={styles.cardHead}>
+              <View style={styles.sectionHeadRow}>
+                <Ionicons name="shield-checkmark" size={20} color={Colors.primary.light} />
+                <Text style={styles.cardTitle}>Campus Identity & Details</Text>
+              </View>
+              <View style={profile?.photoKey ? styles.verifiedPill : styles.unverifiedPill}>
+                <Ionicons
+                  name={profile?.photoKey ? 'checkmark-circle' : 'alert-circle'}
+                  size={13}
+                  color={profile?.photoKey ? '#10B981' : '#EF4444'}
+                />
+                <Text style={profile?.photoKey ? styles.verifiedPillText : styles.unverifiedPillText}>
+                  {profile?.photoKey ? 'Photo Verified ✓' : 'Photo Mandatory *'}
+                </Text>
+              </View>
+            </View>
+            <Text style={styles.cardSubtitle}>
+              Applied from your official campus admission and directory records.
+            </Text>
+
+            <View style={styles.identityGrid}>
+              <View style={styles.identityItem}>
+                <Text style={styles.identityLabel}>College / Campus</Text>
+                <Text style={styles.identityValue}>{user?.campusName || 'Supercampus Institute'}</Text>
+              </View>
+
+              <View style={styles.identityItem}>
+                <Text style={styles.identityLabel}>Campus Role</Text>
+                <View style={styles.rolePill}>
+                  <Text style={styles.rolePillText}>{(profile?.role || user?.role || 'STUDENT').toUpperCase()}</Text>
+                </View>
+              </View>
+
+              <View style={styles.identityItem}>
+                <Text style={styles.identityLabel}>USN / Student ID</Text>
+                <Text style={[styles.identityValue, styles.usnHighlight]}>{profile?.usn || '—'}</Text>
+              </View>
+
+              <View style={styles.identityItem}>
+                <Text style={styles.identityLabel}>College Email</Text>
+                <Text style={styles.identityValue} numberOfLines={1}>{profile?.collegeEmail || user?.email || '—'}</Text>
+              </View>
+
+              <View style={styles.identityItem}>
+                <Text style={styles.identityLabel}>Department / Branch</Text>
+                <Text style={styles.identityValue}>{profile?.department || 'Computer Science & Engineering'}</Text>
+              </View>
+
+              <View style={styles.identityItem}>
+                <Text style={styles.identityLabel}>Batch / Class</Text>
+                <Text style={styles.identityValue}>{profile?.batch || (profile?.graduationYear ? `Class of ${profile.graduationYear}` : '—')}</Text>
+              </View>
+
+              <View style={styles.identityItem}>
+                <Text style={styles.identityLabel}>Residency</Text>
+                <Text style={styles.identityValue}>
+                  {profile?.residency === ResidencyStatus.HostelResident ? 'Hostel Resident' : 'Day Scholar'}
+                </Text>
+              </View>
+
+              <View style={styles.identityItem}>
+                <Text style={styles.identityLabel}>Directory Visibility</Text>
+                <Text style={styles.identityValue}>{visibilityLabel(profile?.visibility ?? ProfileVisibility.Campus)}</Text>
+              </View>
+            </View>
+          </View>
 
           {/* 1. Appearance Card */}
           <Pressable
@@ -642,12 +811,64 @@ export function ProfileScreen() {
           <View style={styles.sheet}>
           <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.sheetBody}>
             <Text style={styles.sheetTitle}>Profile details</Text>
-            <Field label="First name" value={draft?.firstName ?? ''} onChangeText={(firstName) => draft && setDraft({ ...draft, firstName })} />
-            <Field label="Last name" value={draft?.lastName ?? ''} onChangeText={(lastName) => draft && setDraft({ ...draft, lastName })} />
-            <Field label="USN" value={draft?.usn ?? ''} editable={false} />
+
+            {/* Mandatory Profile Photo Section */}
+            <View style={styles.editPhotoSection}>
+              <View style={[styles.editAvatarWrap, !draft?.photoKey && styles.editAvatarWrapMissing]}>
+                {photoUri && auth ? (
+                  <Image
+                    source={{
+                      uri: photoUri,
+                      headers: {
+                        Authorization: `Bearer ${auth.token}`,
+                        'X-Tenant-Id': auth.tenantId,
+                      },
+                    }}
+                    style={styles.editAvatarImage}
+                  />
+                ) : (
+                  <View style={styles.editAvatarFallback}>
+                    <Ionicons name="person" size={32} color={Colors.text.tertiary} />
+                  </View>
+                )}
+              </View>
+              <View style={styles.editPhotoInfo}>
+                <View style={styles.editPhotoTitleRow}>
+                  <Text style={styles.editPhotoTitle}>Profile Photo</Text>
+                  <Text style={styles.mandatoryStar}>* (Mandatory)</Text>
+                </View>
+                <Text style={[styles.editPhotoStatus, !draft?.photoKey && styles.editPhotoStatusMissing]}>
+                  {draft?.photoKey ? '✓ Photo uploaded and verified' : '⚠️ Photo is mandatory to save profile'}
+                </Text>
+                <View style={styles.editPhotoBtnsRow}>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => pickPhoto('camera')}
+                    style={styles.photoChoiceMini}
+                  >
+                    <Ionicons name="camera" size={14} color="#FFFFFF" />
+                    <Text style={styles.photoChoiceMiniText}>Take Photo</Text>
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => pickPhoto('library')}
+                    style={[styles.photoChoiceMini, styles.photoChoiceMiniSecondary]}
+                  >
+                    <Ionicons name="images-outline" size={14} color={Colors.primary.light} />
+                    <Text style={[styles.photoChoiceMiniText, { color: Colors.primary.light }]}>Gallery</Text>
+                  </Pressable>
+                </View>
+              </View>
+            </View>
+
+            <Field label="First name *" value={draft?.firstName ?? ''} onChangeText={(firstName) => draft && setDraft({ ...draft, firstName })} />
+            <Field label="Last name *" value={draft?.lastName ?? ''} onChangeText={(lastName) => draft && setDraft({ ...draft, lastName })} />
+            <Field label="USN / Student ID *" value={draft?.usn ?? ''} onChangeText={(usn) => draft && setDraft({ ...draft, usn })} />
+            <Field label="Department / Branch" value={draft?.department ?? ''} onChangeText={(department) => draft && setDraft({ ...draft, department })} />
+            <Field label="College Email" value={draft?.collegeEmail ?? ''} autoCapitalize="none" onChangeText={(collegeEmail) => draft && setDraft({ ...draft, collegeEmail })} />
             <Field label="Handle" value={draft?.handle ?? ''} autoCapitalize="none" onChangeText={(handle) => draft && setDraft({ ...draft, handle })} />
             <Field
-              label="Graduation year"
+              label="Graduation year / Batch"
               value={draft?.graduationYear ? String(draft.graduationYear) : ''}
               keyboardType="number-pad"
               onChangeText={(value) => draft && setDraft({ ...draft, graduationYear: Number(value.replace(/\D/g, '').slice(0, 4)) || null })}
@@ -994,6 +1215,234 @@ function createStyles(Colors: ColorTokens) {
       borderColor: '#FFFFFF',
       alignItems: 'center',
       justifyContent: 'center',
+    },
+    avatarMissingPhoto: {
+      borderColor: '#EF4444',
+      borderWidth: 3.5,
+    },
+    photoMandatoryBadge: {
+      position: 'absolute',
+      top: -6,
+      alignSelf: 'center',
+      backgroundColor: '#EF4444',
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: '#FFFFFF',
+    },
+    photoMandatoryBadgeText: {
+      fontSize: 10,
+      fontFamily: Typography.bold,
+      color: '#FFFFFF',
+    },
+    mandatoryPhotoBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: light ? '#FEF2F2' : 'rgba(239, 68, 68, 0.12)',
+      borderRadius: 18,
+      padding: 14,
+      borderWidth: 1.5,
+      borderColor: 'rgba(239, 68, 68, 0.4)',
+      marginBottom: 16,
+      gap: 12,
+    },
+    mandatoryPhotoIconWrap: {
+      width: 44,
+      height: 44,
+      borderRadius: 12,
+      backgroundColor: 'rgba(239, 68, 68, 0.2)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    mandatoryPhotoTitle: {
+      fontFamily: Typography.bold,
+      fontSize: 14,
+      color: '#EF4444',
+      marginBottom: 2,
+    },
+    mandatoryPhotoSubtitle: {
+      fontFamily: Typography.regular,
+      fontSize: 12,
+      lineHeight: 16,
+      color: light ? '#7F1D1D' : '#FCA5A5',
+    },
+    mandatoryUploadBtn: {
+      backgroundColor: '#EF4444',
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 10,
+    },
+    mandatoryUploadBtnText: {
+      fontFamily: Typography.bold,
+      fontSize: 12,
+      color: '#FFFFFF',
+    },
+    sectionHeadRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    verifiedPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: light ? '#ECFDF5' : 'rgba(16, 185, 129, 0.15)',
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 8,
+      gap: 4,
+      borderWidth: 1,
+      borderColor: 'rgba(16, 185, 129, 0.3)',
+    },
+    verifiedPillText: {
+      fontSize: 11,
+      fontFamily: Typography.semiBold,
+      color: '#10B981',
+    },
+    unverifiedPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: light ? '#FEF2F2' : 'rgba(239, 68, 68, 0.15)',
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 8,
+      gap: 4,
+      borderWidth: 1,
+      borderColor: 'rgba(239, 68, 68, 0.3)',
+    },
+    unverifiedPillText: {
+      fontSize: 11,
+      fontFamily: Typography.bold,
+      color: '#EF4444',
+    },
+    identityGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 10,
+      marginTop: 14,
+    },
+    identityItem: {
+      width: '48%',
+      backgroundColor: light ? '#F8FAFC' : Colors.background.input,
+      borderRadius: 12,
+      padding: 10,
+      borderWidth: 1,
+      borderColor: cardBorder,
+    },
+    identityLabel: {
+      fontSize: 10.5,
+      fontFamily: Typography.semiBold,
+      color: Colors.text.tertiary,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+      marginBottom: 3,
+    },
+    identityValue: {
+      fontSize: 13,
+      fontFamily: Typography.semiBold,
+      color: Colors.text.primary,
+    },
+    usnHighlight: {
+      color: Colors.primary.cyan,
+      fontFamily: Typography.bold,
+    },
+    rolePill: {
+      alignSelf: 'flex-start',
+      backgroundColor: 'rgba(37, 99, 235, 0.15)',
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 4,
+    },
+    rolePillText: {
+      fontSize: 11,
+      fontFamily: Typography.bold,
+      color: Colors.primary.light,
+    },
+    editPhotoSection: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: light ? '#F8FAFC' : Colors.background.input,
+      borderRadius: 16,
+      padding: 14,
+      marginBottom: 16,
+      borderWidth: 1.5,
+      borderColor: cardBorder,
+      gap: 14,
+    },
+    editAvatarWrap: {
+      width: 64,
+      height: 64,
+      borderRadius: 32,
+      borderWidth: 2,
+      borderColor: Colors.primary.main,
+      overflow: 'hidden',
+    },
+    editAvatarWrapMissing: {
+      borderColor: '#EF4444',
+      borderStyle: 'dashed',
+    },
+    editAvatarImage: {
+      width: '100%',
+      height: '100%',
+    },
+    editAvatarFallback: {
+      width: '100%',
+      height: '100%',
+      backgroundColor: light ? '#E2E8F0' : '#1E293B',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    editPhotoInfo: {
+      flex: 1,
+    },
+    editPhotoTitleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      marginBottom: 2,
+    },
+    editPhotoTitle: {
+      fontSize: 14,
+      fontFamily: Typography.bold,
+      color: Colors.text.primary,
+    },
+    mandatoryStar: {
+      fontSize: 12,
+      fontFamily: Typography.bold,
+      color: '#EF4444',
+    },
+    editPhotoStatus: {
+      fontSize: 12,
+      fontFamily: Typography.regular,
+      color: '#10B981',
+      marginBottom: 8,
+    },
+    editPhotoStatusMissing: {
+      color: '#EF4444',
+      fontFamily: Typography.medium,
+    },
+    editPhotoBtnsRow: {
+      flexDirection: 'row',
+      gap: 8,
+    },
+    photoChoiceMini: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: Colors.primary.main,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 8,
+    },
+    photoChoiceMiniSecondary: {
+      backgroundColor: 'transparent',
+      borderWidth: 1,
+      borderColor: Colors.primary.light,
+    },
+    photoChoiceMiniText: {
+      fontSize: 11,
+      fontFamily: Typography.bold,
+      color: '#FFFFFF',
     },
     heroName: {
       fontFamily: Typography.bold,

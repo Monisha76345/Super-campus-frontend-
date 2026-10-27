@@ -19,10 +19,10 @@ export function FeedFilterTabs({
   const isDark = scheme === 'dark';
   const styles = useMemo(() => createStyles(Colors, isDark), [Colors, isDark]);
 
-  const TABS: { id: FeedFilterType; label: string; soon?: boolean }[] = [
+  const TABS: { id: FeedFilterType; label: string }[] = [
     { id: 'campus', label: 'Campus' },
-    { id: 'following', label: 'Following · Soon', soon: true },
-    { id: 'clubs', label: 'Clubs · Soon', soon: true },
+    { id: 'following', label: 'Following' },
+    { id: 'clubs', label: 'Clubs' },
   ];
 
   return (

@@ -28,6 +28,8 @@ export interface MarketplaceItem {
   sellerId: string;
   sellerName: string;
   sellerRole: string;
+  contactPhone?: string | null;
+  contactEmail?: string | null;
   status: MarketplaceStatus;
   rejectionReason?: string | null;
   approvedBy?: string | null;
@@ -45,6 +47,8 @@ export interface CreateMarketplaceItemPayload {
   condition: MarketplaceCondition;
   category: MarketplaceCategory;
   images?: string[];
+  contactPhone?: string;
+  contactEmail?: string;
 }
 
 export interface MarketplaceFilterParams {
@@ -52,4 +56,5 @@ export interface MarketplaceFilterParams {
   condition?: MarketplaceCondition;
   search?: string;
   status?: MarketplaceStatus;
+  sellerRole?: string;
 }

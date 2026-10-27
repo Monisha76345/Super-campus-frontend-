@@ -10,6 +10,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 
@@ -61,11 +62,22 @@ export function MarketplaceScreen() {
 
   const token = user?.token;
   const tenantId = user?.tenantId || 'nmit';
-  const userRole = user?.role?.toLowerCase();
-  const isAdmin = userRole === 'admin' || userRole === 'campus_admin' || userRole === 'superadmin';
+  const userRole = (user?.role || '').toLowerCase();
+  const userRoles: string[] = Array.isArray((user as any)?.roles)
+    ? (user as any).roles.map((r: string) => String(r).toLowerCase())
+    : [];
+  const isAdmin =
+    userRole === 'admin' ||
+    userRole === 'campus_admin' ||
+    userRole === 'superadmin' ||
+    userRoles.includes('admin') ||
+    userRoles.includes('campus_admin') ||
+    userRoles.includes('superadmin');
   const currentUserId = user?.id;
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('explore');
+  const [sourceFilter, setSourceFilter] = useState<'all' | 'admin' | 'students'>('all');
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<MarketplaceCategory>('All');
   const [items, setItems] = useState<MarketplaceItem[]>([]);
   const [pendingCount, setPendingCount] = useState<number>(0);
@@ -103,29 +115,75 @@ export function MarketplaceScreen() {
   const [createModalVisible, setCreateModalVisible] = useState<boolean>(false);
   const [selectedItem, setSelectedItem] = useState<MarketplaceItem | null>(null);
 
-  // Load items based on active tab and category
+  // Load items based on active tab, category, search, and source filter
   const loadItems = useCallback(async () => {
     try {
       if (activeTab === 'explore') {
+        const sellerRoleParam = sourceFilter === 'admin' ? 'CAMPUS_ADMIN' : undefined;
         const data = await fetchMarketplaceItemsApi(token, tenantId, {
           category: selectedCategory === 'All' ? undefined : selectedCategory,
+          search: searchQuery.trim() || undefined,
+          sellerRole: sellerRoleParam,
         });
-        setItems(data || []);
+
+        let filtered = data || [];
+        if (sourceFilter === 'admin') {
+          filtered = filtered.filter((it) => {
+            const role = (it.sellerRole || '').toUpperCase();
+            return role === 'CAMPUS_ADMIN' || role === 'ADMIN' || it.sellerRole?.toLowerCase() === 'campus_admin';
+          });
+        } else if (sourceFilter === 'students') {
+          filtered = filtered.filter((it) => {
+            const role = (it.sellerRole || '').toUpperCase();
+            return role !== 'CAMPUS_ADMIN' && role !== 'ADMIN' && it.sellerRole?.toLowerCase() !== 'campus_admin';
+          });
+        }
+
+        if (searchQuery.trim()) {
+          const q = searchQuery.trim().toLowerCase();
+          filtered = filtered.filter(
+            (it) =>
+              it.title?.toLowerCase().includes(q) ||
+              it.description?.toLowerCase().includes(q) ||
+              it.category?.toLowerCase().includes(q) ||
+              it.sellerName?.toLowerCase().includes(q),
+          );
+        }
+
+        setItems(filtered);
       } else if (activeTab === 'my') {
         if (!token) {
           setItems([]);
           return;
         }
         const data = await fetchMyMarketplaceItemsApi(token, tenantId);
-        setItems(data || []);
+        let myItems = data || [];
+        if (searchQuery.trim()) {
+          const q = searchQuery.trim().toLowerCase();
+          myItems = myItems.filter(
+            (it) =>
+              it.title?.toLowerCase().includes(q) ||
+              it.description?.toLowerCase().includes(q),
+          );
+        }
+        setItems(myItems);
       } else if (activeTab === 'pending') {
         if (!token || !isAdmin) {
           setItems([]);
           return;
         }
         const data = await fetchPendingMarketplaceItemsApi(token, tenantId);
-        setItems(data || []);
-        setPendingCount(data.length);
+        let pending = data || [];
+        setPendingCount(pending.length);
+        if (searchQuery.trim()) {
+          const q = searchQuery.trim().toLowerCase();
+          pending = pending.filter(
+            (it) =>
+              it.title?.toLowerCase().includes(q) ||
+              it.description?.toLowerCase().includes(q),
+          );
+        }
+        setItems(pending);
       }
 
       // If admin, keep the pending count badge updated
@@ -140,11 +198,14 @@ export function MarketplaceScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [activeTab, selectedCategory, token, tenantId, isAdmin]);
+  }, [activeTab, selectedCategory, searchQuery, sourceFilter, token, tenantId, isAdmin]);
 
   useEffect(() => {
     setLoading(true);
-    loadItems();
+    const delayDebounce = setTimeout(() => {
+      loadItems();
+    }, 250);
+    return () => clearTimeout(delayDebounce);
   }, [loadItems]);
 
   const onRefresh = useCallback(() => {
@@ -280,6 +341,16 @@ export function MarketplaceScreen() {
     }
   };
 
+  // Admin Delete confirmation
+  const handleAdminDelete = (item: MarketplaceItem) => {
+    showModal(
+      'Admin Delete Listing',
+      `Are you sure you want to permanently delete "${item.title}" as Administrator?`,
+      'warning',
+      () => handleDelete(item.id),
+    );
+  };
+
   // Render 2-column grid pairs
   const renderItemCard = ({ item }: { item: MarketplaceItem }) => (
     <View style={styles.gridColumn}>
@@ -288,6 +359,8 @@ export function MarketplaceScreen() {
         onPress={() => setSelectedItem(item)}
         onLikeToggle={() => handleLikeToggle(item)}
         showStatusBadge={activeTab !== 'explore'}
+        isAdmin={isAdmin}
+        onAdminDelete={isAdmin ? () => handleAdminDelete(item) : undefined}
       />
     </View>
   );
@@ -333,6 +406,29 @@ export function MarketplaceScreen() {
       <View style={styles.subtitleContainer}>
         <Text style={styles.mainSubtitle}>Find your next campus essential</Text>
         <Text style={styles.secondarySubtitle}>Buy & sell with your community</Text>
+      </View>
+
+      {/* Search Input Bar */}
+      <View style={styles.searchBarContainer}>
+        <Ionicons name="search-outline" size={18} color={Colors.text.tertiary} style={styles.searchIcon} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search items, textbooks, electronics..."
+          placeholderTextColor={Colors.text.tertiary}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          returnKeyType="search"
+        />
+        {searchQuery.length > 0 && (
+          <Pressable
+            style={styles.searchClearBtn}
+            onPress={() => setSearchQuery('')}
+            hitSlop={8}
+            accessibilityLabel="Clear search"
+          >
+            <Ionicons name="close-circle" size={18} color={Colors.text.tertiary} />
+          </Pressable>
+        )}
       </View>
 
       {/* View Segment Switcher (Explore | My Listings | Admin Review Queue) */}
@@ -389,6 +485,44 @@ export function MarketplaceScreen() {
         )}
       </View>
 
+      {/* Source Filter: Browse Admin Store vs Students (Visible in Market Feed) */}
+      {activeTab === 'explore' && (
+        <View style={styles.sourceFilterContainer}>
+          <Pressable
+            style={[styles.sourceChip, sourceFilter === 'all' && styles.sourceChipActive]}
+            onPress={() => setSourceFilter('all')}
+          >
+            <Text style={[styles.sourceChipText, sourceFilter === 'all' && styles.sourceChipTextActive]}>
+              All Listings
+            </Text>
+          </Pressable>
+
+          <Pressable
+            style={[styles.sourceChip, sourceFilter === 'admin' && styles.sourceChipActiveAdmin]}
+            onPress={() => setSourceFilter('admin')}
+          >
+            <Ionicons
+              name="shield-checkmark"
+              size={13}
+              color={sourceFilter === 'admin' ? '#FFFFFF' : Colors.primary.accent}
+              style={{ marginRight: 4 }}
+            />
+            <Text style={[styles.sourceChipText, sourceFilter === 'admin' && styles.sourceChipTextActive]}>
+              Campus Admin Store
+            </Text>
+          </Pressable>
+
+          <Pressable
+            style={[styles.sourceChip, sourceFilter === 'students' && styles.sourceChipActive]}
+            onPress={() => setSourceFilter('students')}
+          >
+            <Text style={[styles.sourceChipText, sourceFilter === 'students' && styles.sourceChipTextActive]}>
+              Student Listings
+            </Text>
+          </Pressable>
+        </View>
+      )}
+
       {/* Category Pills (Visible when in Explore tab) */}
       {activeTab === 'explore' && (
         <View style={styles.categoryScrollWrapper}>
@@ -420,6 +554,18 @@ export function MarketplaceScreen() {
               );
             })}
           </ScrollView>
+        </View>
+      )}
+
+      {/* Search results banner if search is active */}
+      {searchQuery.trim().length > 0 && (
+        <View style={styles.searchStatusBanner}>
+          <Text style={styles.searchStatusText}>
+            Showing results for "{searchQuery}" ({items.length} {items.length === 1 ? 'item' : 'items'} found)
+          </Text>
+          <Pressable onPress={() => setSearchQuery('')} hitSlop={6}>
+            <Text style={styles.searchStatusClear}>Clear</Text>
+          </Pressable>
         </View>
       )}
 
@@ -458,17 +604,23 @@ export function MarketplaceScreen() {
             <View style={styles.emptyContainer}>
               <Ionicons name="bag-handle-outline" size={54} color={Colors.text.tertiary} />
               <Text style={styles.emptyTitle}>
-                {activeTab === 'pending'
+                {searchQuery.trim().length > 0
+                  ? 'No results found'
+                  : activeTab === 'pending'
                   ? 'All caught up!'
                   : activeTab === 'my'
                   ? 'No listings yet'
                   : 'Nothing found'}
               </Text>
               <Text style={styles.emptySubtitle}>
-                {activeTab === 'pending'
+                {searchQuery.trim().length > 0
+                  ? `No marketplace listings match "${searchQuery}". Try a different keyword.`
+                  : activeTab === 'pending'
                   ? 'No pending student listings to review right now.'
                   : activeTab === 'my'
                   ? 'Tap "+ List item" to sell something to your campus community.'
+                  : sourceFilter === 'admin'
+                  ? 'No official campus admin listings currently available.'
                   : `No items listed under "${selectedCategory}". Be the first to list one!`}
               </Text>
               {activeTab === 'my' && (
@@ -590,7 +742,7 @@ function createStyles(Colors: ColorTokens) {
     },
     subtitleContainer: {
       paddingHorizontal: 16,
-      marginBottom: 14,
+      marginBottom: 10,
     },
     mainSubtitle: {
       fontFamily: Typography.bold,
@@ -603,6 +755,88 @@ function createStyles(Colors: ColorTokens) {
       fontFamily: Typography.regular,
       fontSize: 13,
       color: Colors.text.secondary,
+    },
+    searchBarContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: Colors.background.surface,
+      borderWidth: 1,
+      borderColor: Colors.border.subtle,
+      borderRadius: 14,
+      marginHorizontal: 16,
+      marginBottom: 14,
+      paddingHorizontal: 12,
+      height: 44,
+    },
+    searchIcon: {
+      marginRight: 8,
+    },
+    searchInput: {
+      flex: 1,
+      fontFamily: Typography.medium,
+      fontSize: 14,
+      color: Colors.text.primary,
+      paddingVertical: 0,
+    },
+    searchClearBtn: {
+      padding: 4,
+    },
+    sourceFilterContainer: {
+      flexDirection: 'row',
+      marginHorizontal: 16,
+      marginBottom: 12,
+      gap: 8,
+    },
+    sourceChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 12,
+      paddingVertical: 7,
+      borderRadius: 20,
+      backgroundColor: Colors.background.surface,
+      borderWidth: 1,
+      borderColor: Colors.border.subtle,
+    },
+    sourceChipActive: {
+      backgroundColor: Colors.primary.cyan,
+      borderColor: Colors.primary.light,
+    },
+    sourceChipActiveAdmin: {
+      backgroundColor: Colors.primary.main,
+      borderColor: Colors.primary.accent,
+    },
+    sourceChipText: {
+      fontFamily: Typography.medium,
+      fontSize: 12,
+      fontWeight: '500',
+      color: Colors.text.secondary,
+    },
+    sourceChipTextActive: {
+      color: '#FFFFFF',
+      fontWeight: '700',
+    },
+    searchStatusBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginHorizontal: 16,
+      marginBottom: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      backgroundColor: Colors.background.elevated,
+      borderRadius: 8,
+    },
+    searchStatusText: {
+      fontFamily: Typography.medium,
+      fontSize: 12,
+      color: Colors.text.secondary,
+      flex: 1,
+    },
+    searchStatusClear: {
+      fontFamily: Typography.bold,
+      fontSize: 12,
+      color: Colors.primary.accent,
+      marginLeft: 8,
     },
     segmentContainer: {
       flexDirection: 'row',

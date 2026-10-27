@@ -10,6 +10,8 @@ import { openTab } from '@/features/campus/navigation';
 import { useAuthSession } from '@/features/auth';
 import { profileApi } from '@/features/profile/api/profile-api';
 import { CampusProfile } from '@/features/profile/types';
+import { outpassApi } from '@/features/campus/api/outpass-api';
+import { OutpassItem } from '@/features/campus/types/outpass.types';
 
 import { CommunityHeroCard } from './CommunityHeroCard';
 import { FoodDiningSection } from './FoodDiningSection';
@@ -20,12 +22,29 @@ import { QuickActionCategories } from './QuickActionCategories';
 import { StatusCardsGrid } from './StatusCardsGrid';
 import { CsvDirectoryImportModal } from '@/features/campus/components/admin/CsvDirectoryImportModal';
 
+function formatPassTime(isoString: string): string {
+  try {
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return isoString;
+    const isToday = d.toDateString() === new Date().toDateString();
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    const timeStr = `${hours}:${minutes}`;
+    if (isToday) return `Today, ${timeStr}`;
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return `${d.getDate()} ${months[d.getMonth()]}, ${timeStr}`;
+  } catch {
+    return isoString;
+  }
+}
+
 export function HomeScreenContent() {
   const Colors = useColors();
   const styles = useMemo(() => createStyles(Colors), [Colors]);
   const router = useRouter();
   const { user } = useAuthSession();
   const [profile, setProfile] = useState<CampusProfile | null>(null);
+  const [activeOutpass, setActiveOutpass] = useState<OutpassItem | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab] = useState<TabKey>('home');
   const [showCsvModal, setShowCsvModal] = useState(false);
@@ -36,23 +55,38 @@ export function HomeScreenContent() {
     roleNormalized === 'admin' ||
     roleNormalized === 'campus_admin';
 
-  const fetchProfile = useCallback(async () => {
+  const fetchData = useCallback(async () => {
     if (!user?.token || !user?.tenantId) return;
     try {
-      const data = await profileApi.getMine({ token: user.token, tenantId: user.tenantId });
-      setProfile(data);
+      const [profileData, outpassData] = await Promise.all([
+        profileApi.getMine({ token: user.token, tenantId: user.tenantId }).catch(() => null),
+        outpassApi.getMyRequests({ token: user.token, tenantId: user.tenantId }).catch(() => [] as OutpassItem[]),
+      ]);
+      if (profileData) {
+        setProfile(profileData);
+      }
+      if (Array.isArray(outpassData)) {
+        const sorted = outpassData.filter((o) =>
+          ['ACTIVE', 'APPROVED', 'PENDING'].includes(o.status)
+        );
+        sorted.sort((a, b) => {
+          const priority: Record<string, number> = { ACTIVE: 1, APPROVED: 2, PENDING: 3 };
+          return (priority[a.status] || 99) - (priority[b.status] || 99);
+        });
+        setActiveOutpass(sorted[0] || null);
+      }
     } catch {
       // Fallback silently to session details on network delay
     }
   }, [user?.token, user?.tenantId]);
 
   useEffect(() => {
-    fetchProfile();
-  }, [fetchProfile]);
+    fetchData();
+  }, [fetchData]);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await fetchProfile();
+    await fetchData();
     setRefreshing(false);
   };
 
@@ -152,8 +186,84 @@ export function HomeScreenContent() {
         {/* 3. Core Campus Services (Food, Marketplace, Sports, Outpass, Projects) */}
         <QuickActionCategories />
 
+        {/* Live Upcoming / Active Outpass Gate Card */}
+        {activeOutpass && (activeOutpass.status === 'APPROVED' || activeOutpass.status === 'ACTIVE') && (
+          <Pressable
+            onPress={() => router.push('/outpass')}
+            style={({ pressed }) => [
+              styles.activePassBanner,
+              activeOutpass.status === 'ACTIVE' && styles.activePassBannerGreen,
+              pressed && styles.pressed,
+            ]}>
+            <View
+              style={[
+                styles.activePassIconBox,
+                activeOutpass.status === 'ACTIVE' && styles.activePassIconBoxGreen,
+              ]}>
+              <Ionicons
+                name={activeOutpass.status === 'ACTIVE' ? 'log-out' : 'qr-code'}
+                size={22}
+                color={activeOutpass.status === 'ACTIVE' ? '#10B981' : '#38BDF8'}
+              />
+            </View>
+
+            <View style={styles.activePassInfo}>
+              <View style={styles.activePassHeaderRow}>
+                <View
+                  style={[
+                    styles.passTypeTag,
+                    activeOutpass.passType === 'LEAVE'
+                      ? styles.passTypeTagLeave
+                      : styles.passTypeTagOutpass,
+                  ]}>
+                  <Text
+                    style={[
+                      styles.passTypeTagText,
+                      activeOutpass.passType === 'LEAVE'
+                        ? styles.passTypeTagTextLeave
+                        : styles.passTypeTagTextOutpass,
+                    ]}>
+                    {activeOutpass.passType === 'LEAVE' ? 'HOSTEL LEAVE' : 'DAY OUTPASS'}
+                  </Text>
+                </View>
+
+                <View
+                  style={[
+                    styles.activePassStatusPill,
+                    activeOutpass.status === 'ACTIVE' && styles.activePassStatusPillGreen,
+                  ]}>
+                  <View
+                    style={[
+                      styles.activePassPulseDot,
+                      activeOutpass.status === 'ACTIVE' && { backgroundColor: '#10B981' },
+                    ]}
+                  />
+                  <Text
+                    style={[
+                      styles.activePassStatusText,
+                      activeOutpass.status === 'ACTIVE' && { color: '#10B981' },
+                    ]}>
+                    {activeOutpass.status === 'ACTIVE' ? 'CHECKED OUT' : 'READY AT GATE'}
+                  </Text>
+                </View>
+              </View>
+
+              <Text style={styles.activePassDest} numberOfLines={1}>
+                {activeOutpass.destination}
+              </Text>
+              <Text style={styles.activePassReturnText}>
+                Return by {formatPassTime(activeOutpass.returnTime)}
+              </Text>
+            </View>
+
+            <View style={styles.activePassArrowBox}>
+              <Ionicons name="chevron-forward" size={16} color="#38BDF8" />
+            </View>
+          </Pressable>
+        )}
+
         {/* 4. Live Status Cards (Upcoming Booking & Outpass Status) */}
-        <StatusCardsGrid />
+        <StatusCardsGrid refreshTrigger={refreshing} />
 
         {/* 5. Campus Bites & Cafeterias */}
         <FoodDiningSection />
@@ -322,6 +432,107 @@ function createStyles(Colors: ColorTokens) {
     fontFamily: Typography.regular,
     fontSize: 11,
     color: '#94A3B8',
+  },
+  activePassBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0F172A',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.35)',
+    padding: 12,
+    marginBottom: 10,
+    gap: 12,
+  },
+  activePassBannerGreen: {
+    borderColor: 'rgba(16, 185, 129, 0.4)',
+    backgroundColor: '#0A1719',
+  },
+  activePassIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: 'rgba(56, 189, 248, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activePassIconBoxGreen: {
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+  },
+  activePassInfo: {
+    flex: 1,
+  },
+  activePassHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 3,
+  },
+  passTypeTag: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    backgroundColor: 'rgba(56, 189, 248, 0.15)',
+  },
+  passTypeTagLeave: {
+    backgroundColor: 'rgba(167, 139, 250, 0.15)',
+  },
+  passTypeTagOutpass: {
+    backgroundColor: 'rgba(56, 189, 248, 0.15)',
+  },
+  passTypeTagText: {
+    fontFamily: Typography.bold,
+    fontSize: 9,
+    letterSpacing: 0.5,
+  },
+  passTypeTagTextOutpass: {
+    color: '#38BDF8',
+  },
+  passTypeTagTextLeave: {
+    color: '#A78BFA',
+  },
+  activePassStatusPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    backgroundColor: 'rgba(56, 189, 248, 0.12)',
+  },
+  activePassStatusPillGreen: {
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+  },
+  activePassPulseDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: '#38BDF8',
+  },
+  activePassStatusText: {
+    fontFamily: Typography.bold,
+    fontSize: 9,
+    color: '#38BDF8',
+    letterSpacing: 0.5,
+  },
+  activePassDest: {
+    fontFamily: Typography.bold,
+    fontSize: 14,
+    color: '#F8FAFC',
+    marginBottom: 2,
+  },
+  activePassReturnText: {
+    fontFamily: Typography.medium,
+    fontSize: 11,
+    color: '#94A3B8',
+  },
+  activePassArrowBox: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(56, 189, 248, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
 }

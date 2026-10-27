@@ -18,6 +18,17 @@ export interface CampusEvent {
   createdBy: string;
 }
 
+export interface ClubMember {
+  userId: string;
+  fullName: string;
+  clubRole: string;
+  department: string;
+  batch?: string | null;
+  usn?: string | null;
+  initials: string;
+  isLead: boolean;
+}
+
 export interface CampusClub {
   id: string;
   name: string;
@@ -26,6 +37,13 @@ export interface CampusClub {
   memberCount: number;
   bannerKey: string | null;
   status: string;
+  leadUserId?: string | null;
+  leadName?: string | null;
+  meetingSchedule?: string | null;
+  roomOrVenue?: string | null;
+  contactEmail?: string | null;
+  isJoined?: boolean;
+  members?: ClubMember[];
 }
 
 export interface CampusOpportunity {

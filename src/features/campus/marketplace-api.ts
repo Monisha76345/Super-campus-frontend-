@@ -24,6 +24,9 @@ export async function fetchMarketplaceItemsApi(
   if (params?.status) {
     queryParts.push(`status=${encodeURIComponent(params.status)}`);
   }
+  if (params?.sellerRole) {
+    queryParts.push(`sellerRole=${encodeURIComponent(params.sellerRole)}`);
+  }
 
   const qs = queryParts.length > 0 ? `?${queryParts.join('&')}` : '';
   return apiRequest<MarketplaceItem[]>(`/marketplace/items${qs}`, {

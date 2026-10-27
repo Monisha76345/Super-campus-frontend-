@@ -34,47 +34,84 @@ export function PostComposer({
 
   const [content, setContent] = useState('');
   const [visibility, setVisibility] = useState<PostVisibility>('CAMPUS');
-  const [selectedPhotos, setSelectedPhotos] = useState<string[]>([]);
+  const [selectedMedia, setSelectedMedia] = useState<Array<{ uri: string; type: 'image' | 'video'; duration?: number }>>([]);
 
-  const handlePickPhotos = async () => {
-    if (selectedPhotos.length >= 4) {
-      Alert.alert('Attachment Limit', 'You can attach up to 4 photos per post.');
+  const handlePickMedia = async () => {
+    if (selectedMedia.length >= 4) {
+      Alert.alert('Attachment Limit', 'You can attach up to 4 photos or videos per post.');
       return;
     }
 
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert('Permission Denied', 'Please allow photo access to upload pictures.');
+      Alert.alert('Permission Denied', 'Please allow media library access to upload photos or videos.');
       return;
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
+      mediaTypes: ['images', 'videos'],
       allowsMultipleSelection: true,
-      selectionLimit: 4 - selectedPhotos.length,
+      selectionLimit: 4 - selectedMedia.length,
+      videoMaxDuration: 150,
       quality: 0.8,
     });
 
     if (!result.canceled && result.assets) {
-      const newUris = result.assets.map((asset) => asset.uri);
-      setSelectedPhotos((prev) => [...prev, ...newUris].slice(0, 4));
+      const newItems: Array<{ uri: string; type: 'image' | 'video'; duration?: number }> = [];
+
+      for (const asset of result.assets) {
+        const isVideo =
+          asset.type === 'video' ||
+          (asset.mimeType && asset.mimeType.startsWith('video/')) ||
+          /\.(mp4|mov|m4v|webm)$/i.test(asset.uri);
+
+        if (isVideo && asset.duration) {
+          const durationSec =
+            asset.duration > 1000 ? Math.round(asset.duration / 1000) : Math.round(asset.duration);
+          if (durationSec > 150) {
+            Alert.alert(
+              'Video Too Long',
+              `The selected video is ${durationSec}s. Posts can only include videos up to 150 seconds (2.5 minutes).`,
+            );
+            continue;
+          }
+        }
+
+        const durationSec = asset.duration
+          ? asset.duration > 1000
+            ? Math.round(asset.duration / 1000)
+            : Math.round(asset.duration)
+          : undefined;
+
+        newItems.push({
+          uri: asset.uri,
+          type: isVideo ? 'video' : 'image',
+          duration: durationSec,
+        });
+      }
+
+      setSelectedMedia((prev) => [...prev, ...newItems].slice(0, 4));
     }
   };
 
-  const handleRemovePhoto = (index: number) => {
-    setSelectedPhotos((prev) => prev.filter((_, i) => i !== index));
+  const handleRemoveMedia = (index: number) => {
+    setSelectedMedia((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handlePost = async () => {
-    if (!content.trim() && selectedPhotos.length === 0) {
-      Alert.alert('Empty Post', 'Please write a message or select a photo to share.');
+    if (!content.trim() && selectedMedia.length === 0) {
+      Alert.alert('Empty Post', 'Please write a message or select a photo/video to share.');
       return;
     }
 
-    const success = await onSubmit(content, selectedPhotos, visibility);
+    const success = await onSubmit(
+      content,
+      selectedMedia.map((m) => m.uri),
+      visibility,
+    );
     if (success) {
       setContent('');
-      setSelectedPhotos([]);
+      setSelectedMedia([]);
       setVisibility('CAMPUS');
     }
   };
@@ -96,7 +133,7 @@ export function PostComposer({
         <TextInput
           value={content}
           onChangeText={setContent}
-          placeholder="Share an update with your campus..."
+          placeholder="Share an update, photo, or video (up to 150s)..."
           placeholderTextColor="#64748B"
           multiline
           maxLength={2000}
@@ -105,14 +142,22 @@ export function PostComposer({
         <Text style={styles.charCounter}>{charCount}/2000</Text>
       </View>
 
-      {/* Image Preview Row if photos picked */}
-      {selectedPhotos.length > 0 && (
+      {/* Media Preview Row if photos/videos picked */}
+      {selectedMedia.length > 0 && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.previewScroll}>
-          {selectedPhotos.map((uri, idx) => (
-            <View key={uri + idx} style={styles.previewWrapper}>
-              <Image source={{ uri }} style={styles.previewImage} />
+          {selectedMedia.map((media, idx) => (
+            <View key={media.uri + idx} style={styles.previewWrapper}>
+              <Image source={{ uri: media.uri }} style={styles.previewImage} />
+              {media.type === 'video' && (
+                <View style={styles.videoBadgeOverlay}>
+                  <Ionicons name="videocam" size={12} color="#FFFFFF" />
+                  <Text style={styles.videoBadgeDuration}>
+                    {media.duration ? `${media.duration}s` : 'Video'}
+                  </Text>
+                </View>
+              )}
               <Pressable
-                onPress={() => handleRemovePhoto(idx)}
+                onPress={() => handleRemoveMedia(idx)}
                 style={styles.removePhotoBadge}
                 hitSlop={4}>
                 <Ionicons name="close-circle" size={18} color="#EF4444" />
@@ -174,21 +219,21 @@ export function PostComposer({
       <View style={styles.bottomRow}>
         <View style={styles.mediaButtonColumn}>
           <Pressable
-            onPress={handlePickPhotos}
+            onPress={handlePickMedia}
             disabled={isSubmitting}
             style={({ pressed }) => [styles.photoButton, pressed && styles.pressed]}>
             <Ionicons name="image-outline" size={17} color="#38BDF8" />
-            <Text style={styles.photoButtonText}>Photo/Video</Text>
+            <Text style={styles.photoButtonText}>Photo / Video (≤ 150s)</Text>
           </Pressable>
-          <Text style={styles.attachmentMeta}>({selectedPhotos.length}/4 attachments)</Text>
+          <Text style={styles.attachmentMeta}>({selectedMedia.length}/4 attachments)</Text>
         </View>
 
         <Pressable
           onPress={handlePost}
-          disabled={isSubmitting || (!content.trim() && selectedPhotos.length === 0)}
+          disabled={isSubmitting || (!content.trim() && selectedMedia.length === 0)}
           style={({ pressed }) => [
             styles.postButton,
-            (!content.trim() && selectedPhotos.length === 0) && styles.postButtonDisabled,
+            (!content.trim() && selectedMedia.length === 0) && styles.postButtonDisabled,
             pressed && styles.pressed,
           ]}>
           {isSubmitting ? (
@@ -288,6 +333,24 @@ function createStyles(Colors: ColorTokens, isDark: boolean) {
       right: -6,
       backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
       borderRadius: 10,
+    },
+    videoBadgeOverlay: {
+      position: 'absolute',
+      bottom: 2,
+      left: 2,
+      right: 2,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 3,
+      backgroundColor: 'rgba(0, 0, 0, 0.7)',
+      borderRadius: 4,
+      paddingVertical: 1,
+    },
+    videoBadgeDuration: {
+      fontSize: 9.5,
+      color: '#FFFFFF',
+      fontWeight: '600',
     },
     visibilityRow: {
       flexDirection: 'row',

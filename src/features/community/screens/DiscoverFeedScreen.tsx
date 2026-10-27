@@ -30,6 +30,7 @@ import { PostCard } from '../components/PostCard';
 import { PostComposer } from '../components/PostComposer';
 import { SubmissionsBanner } from '../components/SubmissionsBanner';
 import { SubmissionsModal } from '../components/SubmissionsModal';
+import { SharePostModal } from '../components/SharePostModal';
 import {
   CommunityPost,
   MySubmissionsData,
@@ -55,6 +56,7 @@ export function DiscoverFeedScreen() {
 
   const [selectedFilter, setSelectedFilter] = useState<FeedFilterType>('campus');
   const [activePostForComments, setActivePostForComments] = useState<CommunityPost | null>(null);
+  const [activePostForShare, setActivePostForShare] = useState<CommunityPost | null>(null);
   const [showCommentsModal, setShowCommentsModal] = useState(false);
   const [showSubmissionsModal, setShowSubmissionsModal] = useState(false);
 
@@ -196,8 +198,32 @@ export function DiscoverFeedScreen() {
     ]);
   };
 
+  const handleOpenShare = (post: CommunityPost) => {
+    setActivePostForShare(post);
+  };
+
   const userInitial = (user?.fullName || user?.email || 'U').charAt(0);
-  const isAdmin = user?.role === 'superadmin';
+  const roleNorm = (user?.role || '').toLowerCase().replace(/[-_]/g, '');
+  const isAdmin =
+    roleNorm === 'admin' ||
+    roleNorm === 'campusadmin' ||
+    roleNorm === 'superadmin' ||
+    user?.role === 'admin' ||
+    user?.role === 'superadmin';
+
+  const emptyTitle =
+    selectedFilter === 'following'
+      ? 'No posts from followed members yet'
+      : selectedFilter === 'clubs'
+      ? 'No club posts yet'
+      : 'No posts yet';
+
+  const emptySubtitle =
+    selectedFilter === 'following'
+      ? 'Connect with classmates in the Connect tab to see their posts here.'
+      : selectedFilter === 'clubs'
+      ? 'Club announcements, updates, and events will appear here.'
+      : 'Be the first to share an update with your campus!';
 
   return (
     <View style={styles.container}>
@@ -248,8 +274,8 @@ export function DiscoverFeedScreen() {
           </View>
         ) : posts.length === 0 ? (
           <View style={styles.emptyFeedBox}>
-            <Text style={styles.emptyTitle}>No posts yet</Text>
-            <Text style={styles.emptySubtitle}>Be the first to share an update with your campus!</Text>
+            <Text style={styles.emptyTitle}>{emptyTitle}</Text>
+            <Text style={styles.emptySubtitle}>{emptySubtitle}</Text>
           </View>
         ) : (
           posts.map((post) => (
@@ -260,6 +286,7 @@ export function DiscoverFeedScreen() {
               isAdmin={isAdmin}
               onLike={handleToggleLike}
               onCommentPress={handleOpenComments}
+              onSharePress={handleOpenShare}
               onDeletePress={handleDeletePost}
             />
           ))
@@ -268,6 +295,15 @@ export function DiscoverFeedScreen() {
         {/* Campus Polls Placeholder */}
         <CampusPollsCard />
       </ScrollView>
+
+      {/* Share Post Modal */}
+      <SharePostModal
+        visible={Boolean(activePostForShare)}
+        post={activePostForShare}
+        onClose={() => setActivePostForShare(null)}
+        token={token}
+        tenantId={tenantId}
+      />
 
       {/* Floating Bottom Nav with Discover Active */}
       <HomeBottomTabs

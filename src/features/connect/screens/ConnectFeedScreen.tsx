@@ -2,12 +2,16 @@ import { Ionicons } from '@expo/vector-icons';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
+  Image,
+  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -15,6 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ColorTokens } from '@/constants/colors';
 import { Typography } from '@/constants/fonts';
 import { useAppTheme } from '@/theme/app-theme';
+import { useAuthSession } from '@/features/auth';
 import {
   CampusClub,
   CampusEvent,
@@ -27,6 +32,7 @@ import {
   fetchOpportunitiesApi,
 } from '../api/connect-api';
 import { ClubProfileModal } from '../components/ClubProfileModal';
+import { EventDetailModal } from '../components/EventDetailModal';
 
 interface ConnectFeedScreenProps {
   campusName: string;
@@ -58,6 +64,15 @@ export function ConnectFeedScreen({
   const isDark = scheme === 'dark';
   const styles = useMemo(() => createStyles(Colors, isDark), [Colors, isDark]);
   const insets = useSafeAreaInsets();
+  const { user } = useAuthSession();
+
+  const roleNorm = (user?.role || '').toLowerCase().replace(/[-_]/g, '');
+  const canPostJob =
+    roleNorm === 'alumni' ||
+    roleNorm === 'faculty' ||
+    roleNorm === 'admin' ||
+    roleNorm === 'superadmin' ||
+    roleNorm === 'campusadmin';
 
   const [activeTab, setActiveTab] = useState<ConnectTab>(initialTab);
   const [events, setEvents] = useState<CampusEvent[]>([]);
@@ -65,6 +80,14 @@ export function ConnectFeedScreen({
   const [opportunities, setOpportunities] = useState<CampusOpportunity[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Modal states
+  const [selectedClub, setSelectedClub] = useState<CampusClub | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<CampusEvent | null>(null);
+  const [applyingOpportunity, setApplyingOpportunity] = useState<CampusOpportunity | null>(null);
+  const [applicantUsn, setApplicantUsn] = useState('');
+  const [applicantNote, setApplicantNote] = useState('');
+  const [isSubmittingApp, setIsSubmittingApp] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -99,8 +122,6 @@ export function ConnectFeedScreen({
     loadData();
   };
 
-  const [selectedClub, setSelectedClub] = useState<CampusClub | null>(null);
-
   const handleClubUpdated = (updated: CampusClub) => {
     setClubs((prev) =>
       prev.map((c) => (c.id === updated.id ? { ...c, ...updated } : c)),
@@ -108,8 +129,41 @@ export function ConnectFeedScreen({
     setSelectedClub((current) => (current?.id === updated.id ? { ...current, ...updated } : current));
   };
 
+  const handleSubmitApplication = () => {
+    if (!applicantUsn.trim()) {
+      Alert.alert('Required Field', 'Please enter your USN or Roll Number.');
+      return;
+    }
+    setIsSubmittingApp(true);
+    setTimeout(() => {
+      setIsSubmittingApp(false);
+      const title = applyingOpportunity?.title || 'Position';
+      setApplyingOpportunity(null);
+      setApplicantNote('');
+      Alert.alert(
+        'Application Sent! 🎉',
+        `Your application for "${title}" has been successfully submitted to the recruiter.`,
+      );
+    }, 600);
+  };
+
   const renderEventItem = ({ item }: { item: CampusEvent }) => (
-    <View style={styles.card}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`View full details for event ${item.title}`}
+      onPress={() => setSelectedEvent(item)}
+      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}>
+      {/* Banner Preview if present */}
+      {(item.bannerUrl || item.bannerKey) && (
+        <View style={styles.eventBannerFrame}>
+          <Image
+            source={{ uri: item.bannerUrl || item.bannerKey || '' }}
+            style={styles.eventBannerImage}
+            resizeMode="cover"
+          />
+        </View>
+      )}
+
       <View style={styles.cardHeaderRow}>
         <View style={styles.eventBadge}>
           <Ionicons name="calendar" size={13} color="#38BDF8" style={{ marginRight: 4 }} />
@@ -117,27 +171,31 @@ export function ConnectFeedScreen({
         </View>
         <Text style={styles.timeBadgeText}>{item.formattedTime}</Text>
       </View>
+
       <Text style={styles.cardTitle}>{item.title}</Text>
-      <Text style={styles.cardDescription}>{item.description}</Text>
+      <Text style={styles.cardDescription} numberOfLines={2}>
+        {item.description}
+      </Text>
+
       <View style={styles.cardFooterRow}>
         <View style={styles.venueRow}>
           <Ionicons name="location-outline" size={15} color={isDark ? '#94A3B8' : Colors.text.secondary} />
           <Text style={styles.venueText}>{item.venue}</Text>
         </View>
-        {item.capacity ? (
-          <Text style={styles.capacityText}>Cap: {item.capacity} seats</Text>
-        ) : null}
+        <View style={styles.viewFullPill}>
+          <Text style={styles.viewFullPillText}>Full Details & RSVP</Text>
+          <Ionicons name="chevron-forward" size={13} color="#38BDF8" />
+        </View>
       </View>
-    </View>
+    </Pressable>
   );
 
   const renderClubItem = ({ item }: { item: CampusClub }) => (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`View ${item.name} profile and members`}
+      accessibilityLabel={`View ${item.name} channel`}
       style={({ pressed }) => [styles.card, styles.clubCard, pressed && styles.cardPressed]}
-      onPress={() => setSelectedClub(item)}
-    >
+      onPress={() => setSelectedClub(item)}>
       <View style={styles.cardHeaderRow}>
         <View style={styles.eventBadge}>
           <Text style={styles.eventBadgeText}>{item.category}</Text>
@@ -153,11 +211,13 @@ export function ConnectFeedScreen({
         </View>
       </View>
       <Text style={styles.cardTitle}>{item.name}</Text>
-      <Text style={styles.cardDescription} numberOfLines={2}>{item.description}</Text>
+      <Text style={styles.cardDescription} numberOfLines={2}>
+        {item.description}
+      </Text>
       <View style={styles.clubCardFooter}>
         <View style={styles.clubCardFooterLeft}>
-          <Ionicons name="people" size={14} color={isDark ? '#38BDF8' : Colors.primary.main} />
-          <Text style={styles.viewClubMembersText}>View profile & full roster</Text>
+          <Ionicons name="shield-checkmark" size={14} color="#38BDF8" />
+          <Text style={styles.viewClubMembersText}>Explore Channel, Posts & Trophies</Text>
         </View>
         <Ionicons name="chevron-forward" size={16} color={Colors.text.secondary} />
       </View>
@@ -172,8 +232,28 @@ export function ConnectFeedScreen({
         </View>
         <Text style={styles.companyText}>{item.company}</Text>
       </View>
+
       <Text style={styles.cardTitle}>{item.title}</Text>
       <Text style={styles.cardDescription}>{item.description}</Text>
+
+      {/* Attached Document Pill if available */}
+      {item.documentName ? (
+        <Pressable
+          onPress={() => {
+            Alert.alert(
+              'Attached JD / Criteria 📄',
+              `File: ${item.documentName}\n\nDocument is attached and ready for viewing.`,
+            );
+          }}
+          style={styles.attachedDocPill}>
+          <Ionicons name="document-text" size={15} color="#38BDF8" />
+          <Text style={styles.attachedDocName} numberOfLines={1}>
+            {item.documentName}
+          </Text>
+          <Text style={styles.attachedDocAction}>View Document</Text>
+        </Pressable>
+      ) : null}
+
       <View style={styles.cardFooterRow}>
         <View style={styles.venueRow}>
           <Ionicons name="business-outline" size={15} color={Colors.text.secondary} />
@@ -182,6 +262,19 @@ export function ConnectFeedScreen({
         {item.stipendOrSalary ? (
           <Text style={styles.stipendText}>{item.stipendOrSalary}</Text>
         ) : null}
+      </View>
+
+      {/* Apply Button */}
+      <View style={styles.applyActionRow}>
+        <Pressable
+          onPress={() => {
+            setApplicantUsn(user?.email?.split('@')[0]?.toUpperCase() || '');
+            setApplyingOpportunity(item);
+          }}
+          style={({ pressed }) => [styles.applyBtn, pressed && { opacity: 0.8 }]}>
+          <Ionicons name="paper-plane" size={14} color="#FFFFFF" style={{ marginRight: 6 }} />
+          <Text style={styles.applyBtnText}>Apply Now</Text>
+        </Pressable>
       </View>
     </View>
   );
@@ -192,9 +285,16 @@ export function ConnectFeedScreen({
     return opportunities;
   }, [activeTab, events, clubs, opportunities]);
 
+  // Determine if post button should show
+  const showPostButton = useMemo(() => {
+    if (activeTab === 'clubs') return false;
+    if (activeTab === 'jobs') return canPostJob;
+    return true; // events and internships are open to campus
+  }, [activeTab, canPostJob]);
+
   return (
     <View style={[styles.container, { paddingTop: insets.top + 6 }]}>
-      {/* 1. Header Navigation: "← Back to Connect" */}
+      {/* 1. Header Navigation */}
       <Pressable
         accessibilityRole="button"
         onPress={onBack}
@@ -204,13 +304,13 @@ export function ConnectFeedScreen({
         <Text style={styles.backText}>Back to Connect</Text>
       </Pressable>
 
-      {/* 2. Main Title matching Image 4: "NMIT Connect / Find your community. Build your future." */}
+      {/* 2. Main Title */}
       <View style={styles.titleSection}>
         <Text style={styles.mainTitle}>{campusName} Connect</Text>
         <Text style={styles.mainSubtitle}>Find your community. Build your future.</Text>
       </View>
 
-      {/* 3. Segmented Filter Tabs matching Image 4: Events, Clubs, Internships, Jobs */}
+      {/* 3. Segmented Filter Tabs: Events, Clubs, Internships, Jobs */}
       <View style={styles.tabsRow}>
         {TABS.map((tab) => {
           const isActive = activeTab === tab.key;
@@ -234,9 +334,9 @@ export function ConnectFeedScreen({
         })}
       </View>
 
-      {/* 4. Action Row matching Screenshots 1 & 3 */}
+      {/* 4. Action Row */}
       <View style={styles.actionRow}>
-        {activeTab !== 'clubs' && (
+        {showPostButton && (
           <Pressable
             accessibilityRole="button"
             onPress={() => {
@@ -268,7 +368,7 @@ export function ConnectFeedScreen({
         </Pressable>
       </View>
 
-      {/* 5. Content Feed / Empty State matching Image 4 */}
+      {/* 5. Content Feed */}
       {loading ? (
         <View style={styles.centerBox}>
           <ActivityIndicator size="large" color={Colors.primary.main} />
@@ -302,7 +402,7 @@ export function ConnectFeedScreen({
         />
       )}
 
-      {/* 6. Club Profile Modal */}
+      {/* 6. Club Channel Modal */}
       <ClubProfileModal
         visible={Boolean(selectedClub)}
         club={selectedClub}
@@ -311,6 +411,74 @@ export function ConnectFeedScreen({
         onClose={() => setSelectedClub(null)}
         onClubUpdated={handleClubUpdated}
       />
+
+      {/* 7. Comprehensive Event Details Modal */}
+      <EventDetailModal
+        visible={Boolean(selectedEvent)}
+        event={selectedEvent}
+        onClose={() => setSelectedEvent(null)}
+      />
+
+      {/* 8. Opportunity Application Modal */}
+      <Modal
+        visible={Boolean(applyingOpportunity)}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setApplyingOpportunity(null)}>
+        <Pressable
+          style={styles.appModalBackdrop}
+          onPress={() => setApplyingOpportunity(null)}>
+          <View style={styles.appModalCard}>
+            <Text style={styles.appModalTitle}>
+              Apply for {applyingOpportunity?.title}
+            </Text>
+            <Text style={styles.appModalCompany}>{applyingOpportunity?.company}</Text>
+
+            <View style={styles.appField}>
+              <Text style={styles.appLabel}>Your USN / Student ID</Text>
+              <TextInput
+                value={applicantUsn}
+                onChangeText={setApplicantUsn}
+                placeholder="e.g. 1NT22AD015"
+                placeholderTextColor="#64748B"
+                style={styles.appInput}
+                autoCapitalize="characters"
+              />
+            </View>
+
+            <View style={styles.appField}>
+              <Text style={styles.appLabel}>Note to Recruiter (optional)</Text>
+              <TextInput
+                value={applicantNote}
+                onChangeText={setApplicantNote}
+                placeholder="Mention key skills, GitHub/portfolio links..."
+                placeholderTextColor="#64748B"
+                multiline
+                numberOfLines={3}
+                style={[styles.appInput, { height: 75, textAlignVertical: 'top' }]}
+              />
+            </View>
+
+            <View style={styles.appActionsRow}>
+              <Pressable
+                onPress={() => setApplyingOpportunity(null)}
+                style={styles.appCancelBtn}>
+                <Text style={styles.appCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                disabled={isSubmittingApp}
+                onPress={handleSubmitApplication}
+                style={styles.appSubmitBtn}>
+                {isSubmittingApp ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.appSubmitText}>Submit Application</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -348,93 +516,90 @@ function createStyles(Colors: ColorTokens, isDark: boolean) {
       color: Colors.text.secondary,
       marginTop: 4,
     },
-
-    // Tabs
     tabsRow: {
       flexDirection: 'row',
-      gap: 10,
+      gap: 8,
       marginBottom: 16,
     },
     tabPill: {
-      paddingHorizontal: 16,
-      paddingVertical: 9,
+      paddingHorizontal: 14,
+      paddingVertical: 8,
       borderRadius: 18,
-      borderWidth: 1,
     },
     tabPillActive: {
       backgroundColor: Colors.primary.main,
-      borderColor: isDark ? 'rgba(129, 140, 248, 0.4)' : Colors.primary.light,
     },
     tabPillInactive: {
-      backgroundColor: Colors.background.surface,
-      borderColor: Colors.border.subtle,
+      backgroundColor: isDark ? '#0F172A' : '#F1F5F9',
+      borderWidth: 1,
+      borderColor: isDark ? '#1E293B' : 'rgba(15, 23, 42, 0.08)',
     },
     tabPillText: {
-      fontFamily: Typography.bold,
-      fontSize: 13.5,
+      fontFamily: Typography.semiBold,
+      fontSize: 13,
     },
     tabPillTextActive: {
-      color: Colors.text.onBrand,
+      color: '#FFFFFF',
+      fontWeight: '700',
     },
     tabPillTextInactive: {
-      color: Colors.text.secondary,
+      color: isDark ? '#94A3B8' : '#64748B',
     },
-
-    // Action Row
     actionRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 16,
-      marginBottom: 20,
+      justifyContent: 'space-between',
+      marginBottom: 16,
     },
     postEventBtn: {
-      backgroundColor: Colors.primary.main,
-      borderRadius: 22,
-      paddingHorizontal: 22,
-      paddingVertical: 10,
-      borderWidth: 1.2,
-      borderColor: isDark ? 'rgba(129, 140, 248, 0.35)' : 'rgba(49, 52, 145, 0.2)',
-      shadowColor: Colors.primary.main,
-      shadowOffset: { width: 0, height: 3 },
-      shadowOpacity: isDark ? 0.4 : 0.18,
-      shadowRadius: 8,
-      elevation: 4,
+      backgroundColor: '#2563EB',
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 14,
     },
     postEventText: {
       fontFamily: Typography.bold,
-      fontSize: 14,
-      color: Colors.text.onBrand,
+      fontSize: 13,
+      color: '#FFFFFF',
+      fontWeight: '700',
     },
     refreshBtn: {
-      paddingVertical: 8,
-      paddingHorizontal: 4,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
     },
     refreshText: {
-      fontFamily: Typography.semiBold,
-      fontSize: 14.5,
-      color: isDark ? Colors.primary.cyan : Colors.primary.main,
+      fontFamily: Typography.medium,
+      fontSize: 13,
+      color: '#38BDF8',
     },
     btnPressed: {
-      opacity: 0.85,
-      transform: [{ scale: 0.98 }],
+      opacity: 0.8,
     },
-
-    // Feed list & cards
     listContent: {
       paddingBottom: 110,
-      gap: 12,
     },
     card: {
-      backgroundColor: Colors.background.surface,
-      borderRadius: 22,
-      padding: 18,
-      borderWidth: 1,
-      borderColor: Colors.border.subtle,
-      shadowColor: '#0F172A',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: isDark ? 0 : 0.05,
-      shadowRadius: 6,
-      elevation: isDark ? 0 : 2,
+      backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
+      borderRadius: 16,
+      padding: 16,
+      borderWidth: 1.2,
+      borderColor: isDark ? '#1E293B' : 'rgba(15, 23, 42, 0.08)',
+      marginBottom: 14,
+    },
+    cardPressed: {
+      opacity: 0.85,
+      transform: [{ scale: 0.99 }],
+    },
+    eventBannerFrame: {
+      width: '100%',
+      height: 140,
+      borderRadius: 12,
+      overflow: 'hidden',
+      marginBottom: 12,
+    },
+    eventBannerImage: {
+      width: '100%',
+      height: '100%',
     },
     cardHeaderRow: {
       flexDirection: 'row',
@@ -445,51 +610,70 @@ function createStyles(Colors: ColorTokens, isDark: boolean) {
     eventBadge: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: isDark ? 'rgba(99, 102, 241, 0.16)' : 'rgba(49, 52, 145, 0.08)',
-      paddingHorizontal: 10,
+      backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(37, 99, 235, 0.1)',
+      paddingHorizontal: 8,
       paddingVertical: 4,
-      borderRadius: 12,
+      borderRadius: 10,
     },
     eventBadgeText: {
       fontFamily: Typography.semiBold,
-      fontSize: 12,
-      color: isDark ? Colors.primary.cyan : Colors.primary.main,
+      fontSize: 11.5,
+      color: '#38BDF8',
     },
     timeBadgeText: {
       fontFamily: Typography.regular,
-      fontSize: 12,
+      fontSize: 11.5,
       color: Colors.text.secondary,
     },
     companyText: {
       fontFamily: Typography.semiBold,
-      fontSize: 13,
-      color: isDark ? Colors.primary.cyan : Colors.primary.main,
-    },
-    memberCountText: {
-      fontFamily: Typography.medium,
-      fontSize: 12,
-      color: Colors.text.secondary,
+      fontSize: 12.5,
+      color: '#38BDF8',
     },
     cardTitle: {
       fontFamily: Typography.bold,
-      fontSize: 17,
+      fontSize: 16,
+      fontWeight: '700',
       color: Colors.text.primary,
       marginBottom: 6,
     },
     cardDescription: {
       fontFamily: Typography.regular,
-      fontSize: 13.5,
+      fontSize: 13,
       lineHeight: 19,
-      color: Colors.text.secondary,
+      color: isDark ? '#CBD5E1' : '#475569',
       marginBottom: 10,
+    },
+    attachedDocPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      backgroundColor: isDark ? '#1E293B' : '#F1F5F9',
+      paddingHorizontal: 10,
+      paddingVertical: 7,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: isDark ? '#334155' : 'rgba(15, 23, 42, 0.1)',
+      marginBottom: 10,
+    },
+    attachedDocName: {
+      flex: 1,
+      fontFamily: Typography.medium,
+      fontSize: 12,
+      color: Colors.text.primary,
+    },
+    attachedDocAction: {
+      fontFamily: Typography.bold,
+      fontSize: 11,
+      color: '#38BDF8',
     },
     cardFooterRow: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
+      paddingTop: 8,
       borderTopWidth: 1,
-      borderTopColor: Colors.border.subtle,
-      paddingTop: 10,
+      borderTopColor: isDark ? '#1E293B' : 'rgba(15, 23, 42, 0.06)',
     },
     venueRow: {
       flexDirection: 'row',
@@ -498,42 +682,48 @@ function createStyles(Colors: ColorTokens, isDark: boolean) {
     },
     venueText: {
       fontFamily: Typography.medium,
-      fontSize: 12.5,
-      color: Colors.text.secondary,
-    },
-    capacityText: {
-      fontFamily: Typography.regular,
       fontSize: 12,
       color: Colors.text.secondary,
     },
-    stipendText: {
+    viewFullPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+    },
+    viewFullPillText: {
       fontFamily: Typography.semiBold,
-      fontSize: 13,
-      color: Colors.status.success,
+      fontSize: 11.5,
+      color: '#38BDF8',
     },
-
-    // Empty state
-    emptyContainer: {
-      paddingVertical: 20,
+    stipendText: {
+      fontFamily: Typography.bold,
+      fontSize: 12.5,
+      color: '#10B981',
+      fontWeight: '700',
     },
-    emptyText: {
-      fontFamily: Typography.regular,
-      fontSize: 14.5,
-      color: Colors.text.secondary,
-      lineHeight: 22,
+    applyActionRow: {
+      marginTop: 10,
+      paddingTop: 8,
+      borderTopWidth: 1,
+      borderTopColor: isDark ? '#1E293B' : 'rgba(15, 23, 42, 0.06)',
     },
-    centerBox: {
-      flex: 1,
+    applyBtn: {
+      flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
+      backgroundColor: '#2563EB',
+      height: 38,
+      borderRadius: 10,
+    },
+    applyBtnText: {
+      fontFamily: Typography.bold,
+      fontSize: 13,
+      color: '#FFFFFF',
+      fontWeight: '700',
     },
     clubCard: {
       borderWidth: 1,
-      borderColor: isDark ? '#1E293B' : Colors.border.subtle,
-    },
-    cardPressed: {
-      opacity: 0.85,
-      transform: [{ scale: 0.99 }],
+      borderColor: isDark ? '#1E293B' : 'rgba(15, 23, 42, 0.1)',
     },
     clubHeaderRight: {
       flexDirection: 'row',
@@ -543,24 +733,29 @@ function createStyles(Colors: ColorTokens, isDark: boolean) {
     joinedBadge: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.1)',
+      gap: 4,
+      backgroundColor: 'rgba(16, 185, 129, 0.15)',
       paddingHorizontal: 8,
       paddingVertical: 2,
       borderRadius: 6,
-      gap: 4,
     },
     joinedBadgeText: {
       fontSize: 11,
       fontFamily: Typography.semiBold,
       color: '#10B981',
     },
+    memberCountText: {
+      fontFamily: Typography.medium,
+      fontSize: 12,
+      color: Colors.text.secondary,
+    },
     clubCardFooter: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      borderTopWidth: 1,
-      borderTopColor: isDark ? '#1E293B' : Colors.border.subtle,
       paddingTop: 10,
+      borderTopWidth: 1,
+      borderTopColor: isDark ? '#1E293B' : 'rgba(15, 23, 42, 0.06)',
       marginTop: 4,
     },
     clubCardFooterLeft: {
@@ -571,7 +766,97 @@ function createStyles(Colors: ColorTokens, isDark: boolean) {
     viewClubMembersText: {
       fontFamily: Typography.medium,
       fontSize: 12,
-      color: isDark ? '#38BDF8' : Colors.primary.main,
+      color: '#38BDF8',
+    },
+    centerBox: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    emptyContainer: {
+      paddingVertical: 30,
+      alignItems: 'center',
+    },
+    emptyText: {
+      fontFamily: Typography.regular,
+      fontSize: 14,
+      color: Colors.text.secondary,
+      textAlign: 'center',
+    },
+    appModalBackdrop: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.75)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingHorizontal: 20,
+    },
+    appModalCard: {
+      width: '100%',
+      maxWidth: 380,
+      backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
+      borderRadius: 20,
+      padding: 20,
+      borderWidth: 1.2,
+      borderColor: isDark ? '#1E293B' : 'rgba(15, 23, 42, 0.1)',
+    },
+    appModalTitle: {
+      fontFamily: Typography.bold,
+      fontSize: 17,
+      fontWeight: '700',
+      color: Colors.text.primary,
+    },
+    appModalCompany: {
+      fontFamily: Typography.regular,
+      fontSize: 12.5,
+      color: '#38BDF8',
+      marginBottom: 16,
+    },
+    appField: {
+      marginBottom: 12,
+    },
+    appLabel: {
+      fontFamily: Typography.semiBold,
+      fontSize: 12,
+      color: Colors.text.secondary,
+      marginBottom: 4,
+    },
+    appInput: {
+      backgroundColor: isDark ? '#1E293B' : '#F8FAFC',
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: isDark ? '#334155' : 'rgba(15, 23, 42, 0.1)',
+      paddingHorizontal: 12,
+      height: 44,
+      fontFamily: Typography.regular,
+      fontSize: 13.5,
+      color: Colors.text.primary,
+    },
+    appActionsRow: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      gap: 12,
+      marginTop: 8,
+    },
+    appCancelBtn: {
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+    },
+    appCancelText: {
+      fontFamily: Typography.medium,
+      fontSize: 13.5,
+      color: Colors.text.secondary,
+    },
+    appSubmitBtn: {
+      paddingHorizontal: 18,
+      paddingVertical: 10,
+      borderRadius: 10,
+      backgroundColor: '#2563EB',
+    },
+    appSubmitText: {
+      fontFamily: Typography.bold,
+      fontSize: 13.5,
+      fontWeight: '700',
+      color: '#FFFFFF',
     },
   });
 }

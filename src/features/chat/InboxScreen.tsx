@@ -225,7 +225,7 @@ export function InboxScreen() {
       : isGroup
       ? 'Group created · Tap to say hello'
       : 'No messages yet';
-    const photoUri = !isGroup ? profilePhotoUri(item.recipient.photoKey ?? null) : null;
+    const photoUri = isGroup ? (item.photoKey || null) : profilePhotoUri(item.recipient.photoKey ?? null);
     const threadTitle = isGroup ? (item.name || item.recipient.fullName) : item.recipient.fullName;
 
     return (
@@ -235,9 +235,7 @@ export function InboxScreen() {
         style={({ pressed }) => [styles.threadCard, pressed && styles.threadCardPressed]}>
         {/* Left circular avatar with image, group icon, or initial */}
         <View style={[styles.avatarCircle, isGroup && styles.groupAvatarCircle]}>
-          {isGroup ? (
-            <Ionicons name="people" size={22} color="#FFFFFF" />
-          ) : photoUri ? (
+          {photoUri ? (
             <Image
               source={{
                 uri: photoUri,
@@ -252,6 +250,8 @@ export function InboxScreen() {
               contentFit="cover"
               transition={150}
             />
+          ) : isGroup ? (
+            <Ionicons name="people" size={22} color="#FFFFFF" />
           ) : (
             <Text style={styles.avatarText}>{item.recipient.initials}</Text>
           )}

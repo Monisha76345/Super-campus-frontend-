@@ -47,16 +47,23 @@ export const CAMPUS_SPORTS_LIST: SportCardItem[] = [
   {
     sportType: 'BADMINTON',
     title: 'Badminton',
-    subtitle: '1 courts · Indoor Stadium',
+    subtitle: '1 court · Indoor Stadium',
     tag: 'Indoor',
     icon: 'tennisball-outline',
   },
   {
     sportType: 'BASKETBALL',
     title: 'Basketball',
-    subtitle: '1 courts · Main Sports Complex',
+    subtitle: '1 court · Main Sports Complex',
     tag: 'Outdoor',
     icon: 'basketball-outline',
+  },
+  {
+    sportType: 'FOOTBALL',
+    title: 'Football',
+    subtitle: '1 turf · Main Athletic Ground',
+    tag: 'Outdoor',
+    icon: 'football-outline',
   },
   {
     sportType: 'PICKLEBALL',
@@ -66,9 +73,16 @@ export const CAMPUS_SPORTS_LIST: SportCardItem[] = [
     icon: 'tennisball',
   },
   {
+    sportType: 'TENNIS',
+    title: 'Tennis',
+    subtitle: '1 court · NMIT Tennis Arena',
+    tag: 'Outdoor',
+    icon: 'tennisball-outline',
+  },
+  {
     sportType: 'TABLE_TENNIS',
     title: 'Table Tennis',
-    subtitle: '1 courts · Indoor Stadium',
+    subtitle: '1 table · Indoor Stadium',
     tag: 'Indoor',
     icon: 'disc-outline',
   },
@@ -123,8 +137,7 @@ export function ChooseSportModal({
   const isAdmin =
     roleNorm === 'admin' ||
     roleNorm === 'superadmin' ||
-    roleNorm === 'campus_admin' ||
-    roleNorm === 'faculty';
+    roleNorm === 'campus_admin';
 
   const [adminModalVisible, setAdminModalVisible] = useState(false);
 
@@ -205,7 +218,21 @@ export function ChooseSportModal({
   const handleSelectSportCard = (sport: SportCardItem) => {
     setSelectedSportType(sport.sportType);
     const matchingFacility =
-      facilities.find((f) => f.sportType === sport.sportType) || facilities[0];
+      facilities.find((f) => f.sportType === sport.sportType) ||
+      facilities.find((f) => f.name.toLowerCase().includes(sport.title.toLowerCase())) ||
+      {
+        id: `fac-${sport.sportType.toLowerCase()}-1`,
+        campusId: 'nmit',
+        name: `${sport.title} Court`,
+        sportType: sport.sportType,
+        venueType: (sport.tag === 'Indoor' ? 'INDOOR' : 'OUTDOOR') as any,
+        location: sport.subtitle.split('·')[1]?.trim() || 'Campus Sports Area',
+        openingTime: "06:00:00",
+        closingTime: "22:00:00",
+        slotDurationMinutes: 60,
+        maxPlayers: sport.sportType === 'FOOTBALL' ? 14 : sport.sportType === 'BASKETBALL' ? 10 : 4,
+        isActive: 1,
+      };
     if (matchingFacility) {
       setActiveFacility(matchingFacility);
     }
@@ -288,10 +315,18 @@ export function ChooseSportModal({
         })),
       });
 
+      const bookingWithSport: SportsBooking = {
+        ...newBooking,
+        facilityName: newBooking.facilityName || activeFacility.name,
+        sportType: (newBooking.sportType || activeFacility.sportType || selectedSportType) as SportType,
+        venueType: newBooking.venueType || activeFacility.venueType,
+        location: newBooking.location || activeFacility.location,
+      };
+
       setActiveFacility(null);
       setSelectedTeammates([]);
       onClose();
-      onBookingSuccess(newBooking);
+      onBookingSuccess(bookingWithSport);
     } catch (err: any) {
       Alert.alert('Booking Error', err?.message || 'Could not confirm court booking.');
     } finally {

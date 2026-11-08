@@ -27,6 +27,9 @@ export async function fetchMarketplaceItemsApi(
   if (params?.sellerRole) {
     queryParts.push(`sellerRole=${encodeURIComponent(params.sellerRole)}`);
   }
+  if (params?.listingType) {
+    queryParts.push(`listingType=${encodeURIComponent(params.listingType)}`);
+  }
 
   const qs = queryParts.length > 0 ? `?${queryParts.join('&')}` : '';
   return apiRequest<MarketplaceItem[]>(`/marketplace/items${qs}`, {
@@ -52,18 +55,6 @@ export async function fetchPendingMarketplaceItemsApi(
   tenantId: string,
 ): Promise<MarketplaceItem[]> {
   return apiRequest<MarketplaceItem[]>('/marketplace/items/pending', {
-    method: 'GET',
-    token,
-    tenantId,
-  });
-}
-
-export async function fetchMarketplaceItemByIdApi(
-  token: string,
-  tenantId: string,
-  id: string,
-): Promise<MarketplaceItem> {
-  return apiRequest<MarketplaceItem>(`/marketplace/items/${id}`, {
     method: 'GET',
     token,
     tenantId,
@@ -102,23 +93,20 @@ export async function toggleMarketplaceItemLikeApi(
   token: string,
   tenantId: string,
   itemId: string,
-): Promise<{ isLiked: boolean; likeCount: number }> {
-  return apiRequest<{ isLiked: boolean; likeCount: number }>(
-    `/marketplace/items/${itemId}/like`,
-    {
-      method: 'POST',
-      token,
-      tenantId,
-    },
-  );
+): Promise<{ liked: boolean; likeCount: number }> {
+  return apiRequest<{ liked: boolean; likeCount: number }>(`/marketplace/items/${itemId}/like`, {
+    method: 'POST',
+    token,
+    tenantId,
+  });
 }
 
 export async function deleteMarketplaceItemApi(
   token: string,
   tenantId: string,
   itemId: string,
-): Promise<null> {
-  return apiRequest<null>(`/marketplace/items/${itemId}`, {
+): Promise<void> {
+  return apiRequest<void>(`/marketplace/items/${itemId}`, {
     method: 'DELETE',
     token,
     tenantId,

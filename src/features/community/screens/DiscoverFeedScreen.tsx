@@ -1,8 +1,11 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Modal,
+  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -13,6 +16,7 @@ import { useAuthSession } from '@/features/auth';
 import { openTab } from '@/features/campus/navigation';
 import { HomeBottomTabs } from '@/features/home/components/HomeBottomTabs';
 import { ColorTokens } from '@/constants/colors';
+import { Typography } from '@/constants/fonts';
 import { useAppTheme } from '@/theme/app-theme';
 import {
   addPostCommentApi,
@@ -22,6 +26,7 @@ import {
   fetchMySubmissionsApi,
   togglePostLikeApi,
 } from '../api/community-api';
+import { uploadMediaBatch } from '@/lib/api/media-upload';
 import { CampusPollsCard } from '../components/CampusPollsCard';
 import { CommentsModal } from '../components/CommentsModal';
 import { FeedFilterTabs, FeedFilterType } from '../components/FeedFilterTabs';
@@ -59,6 +64,7 @@ export function DiscoverFeedScreen() {
   const [activePostForShare, setActivePostForShare] = useState<CommunityPost | null>(null);
   const [showCommentsModal, setShowCommentsModal] = useState(false);
   const [showSubmissionsModal, setShowSubmissionsModal] = useState(false);
+  const [showComposerModal, setShowComposerModal] = useState(false);
 
   const loadData = useCallback(async () => {
     if (!token) {
@@ -99,9 +105,21 @@ export function DiscoverFeedScreen() {
     if (!token) return false;
     setIsSubmittingPost(true);
     try {
+      let finalMediaUrls = mediaUrls;
+      const localUris = mediaUrls.filter(
+        (uri) => !uri.startsWith('http://') && !uri.startsWith('https://'),
+      );
+      if (localUris.length > 0) {
+        const uploaded = await uploadMediaBatch(localUris, token, tenantId, 'community', 'post');
+        const remoteExisting = mediaUrls.filter(
+          (uri) => uri.startsWith('http://') || uri.startsWith('https://'),
+        );
+        finalMediaUrls = [...remoteExisting, ...uploaded];
+      }
+
       const newPost = await createCommunityPostApi(token, tenantId, {
         content,
-        mediaUrls,
+        mediaUrls: finalMediaUrls,
         visibility,
       });
 
@@ -113,6 +131,7 @@ export function DiscoverFeedScreen() {
         .then((data) => setSubmissions(data))
         .catch(() => {});
 
+      setShowComposerModal(false);
       return true;
     } catch (err: any) {
       Alert.alert('Post Failed', err?.message || 'Could not publish post. Please try again.');
@@ -123,9 +142,9 @@ export function DiscoverFeedScreen() {
   };
 
   const handleToggleLike = async (postId: string) => {
-    if (!token) return;
+    if (!token) return false;
 
-    // Optimistic UI update
+    // Optimistic UI toggle
     setPosts((prev) =>
       prev.map((p) => {
         if (p.id === postId) {
@@ -133,7 +152,7 @@ export function DiscoverFeedScreen() {
           return {
             ...p,
             isLikedByMe: isLiked,
-            likeCount: isLiked ? p.likeCount + 1 : Math.max(p.likeCount - 1, 0),
+            likeCount: isLiked ? p.likeCount + 1 : Math.max(0, p.likeCount - 1),
           };
         }
         return p;
@@ -141,22 +160,23 @@ export function DiscoverFeedScreen() {
     );
 
     try {
-      const res = await togglePostLikeApi(token, tenantId, postId);
+      await togglePostLikeApi(token, tenantId, postId);
+    } catch (err) {
+      console.warn('Like toggle failed on server, rolling back:', err);
+      // Rollback on network failure
       setPosts((prev) =>
         prev.map((p) => {
           if (p.id === postId) {
+            const isLiked = !p.isLikedByMe;
             return {
               ...p,
-              likeCount: res.likeCount,
-              isLikedByMe: res.isLikedByMe,
+              isLikedByMe: isLiked,
+              likeCount: isLiked ? p.likeCount + 1 : Math.max(0, p.likeCount - 1),
             };
           }
           return p;
         }),
       );
-    } catch {
-      // Revert on error
-      loadData();
     }
   };
 
@@ -165,23 +185,22 @@ export function DiscoverFeedScreen() {
     setShowCommentsModal(true);
   };
 
-  const handleAddComment = async (postId: string, commentText: string): Promise<boolean> => {
+  const handleAddComment = async (postId: string, text: string): Promise<boolean> => {
     if (!token) return false;
     try {
-      const updatedPost = await addPostCommentApi(token, tenantId, postId, commentText);
+      await addPostCommentApi(token, tenantId, postId, text);
 
-      // Update feed post and active post in modal
-      setPosts((prev) => prev.map((p) => (p.id === postId ? updatedPost : p)));
-      setActivePostForComments(updatedPost);
+      // Optimistically bump comment count in feed
+      setPosts((prev) =>
+        prev.map((p) => (p.id === postId ? { ...p, commentCount: p.commentCount + 1 } : p)),
+      );
       return true;
     } catch (err: any) {
-      Alert.alert('Comment Failed', err?.message || 'Could not post comment.');
-      return false;
-    }
+      Alert.alert('Comment Failed', err?.message || 'Could not post comment.');  return false;}
   };
 
   const handleDeletePost = (postId: string) => {
-    Alert.alert('Delete Post', 'Are you sure you want to delete this post?', [
+    Alert.alert('Delete Post', 'Are you sure you want to remove this post from the campus feed?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',
@@ -254,12 +273,23 @@ export function DiscoverFeedScreen() {
           onSelectFilter={setSelectedFilter}
         />
 
-        {/* Post Creator Box */}
-        <PostComposer
-          userInitial={userInitial}
-          isSubmitting={isSubmittingPost}
-          onSubmit={handleCreatePost}
-        />
+        {/* Collapsed "Share with campus" trigger bar with '+' Icon */}
+        <View style={styles.shareBarCard}>
+          <View style={styles.shareBarAvatar}>
+            <Text style={styles.shareBarAvatarText}>{userInitial.toUpperCase()}</Text>
+          </View>
+          <Pressable
+            onPress={() => setShowComposerModal(true)}
+            style={styles.shareBarInputMock}>
+            <Text style={styles.shareBarPlaceholder}>Share with your campus...</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => setShowComposerModal(true)}
+            style={({ pressed }) => [styles.shareBarPlusBtn, pressed && { opacity: 0.75 }]}
+            hitSlop={8}>
+            <Ionicons name="add" size={20} color="#FFFFFF" />
+          </Pressable>
+        </View>
 
         {/* My Submissions Counter Banner */}
         <SubmissionsBanner
@@ -295,6 +325,32 @@ export function DiscoverFeedScreen() {
         {/* Campus Polls Placeholder */}
         <CampusPollsCard />
       </ScrollView>
+
+      {/* Floating Action Button (FAB) '+' */}
+      <Pressable
+        onPress={() => setShowComposerModal(true)}
+        style={({ pressed }) => [
+          styles.fabButton,
+          pressed && { transform: [{ scale: 0.94 }] },
+        ]}>
+        <Ionicons name="add" size={28} color="#FFFFFF" />
+      </Pressable>
+
+      {/* Post Composer Sheet / Modal */}
+      <Modal
+        visible={showComposerModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowComposerModal(false)}>
+        <View style={[styles.composerModalContainer, { backgroundColor: Colors.background.canvas }]}>
+          <PostComposer
+            userInitial={userInitial}
+            isSubmitting={isSubmittingPost}
+            onClose={() => setShowComposerModal(false)}
+            onSubmit={handleCreatePost}
+          />
+        </View>
+      </Modal>
 
       {/* Share Post Modal */}
       <SharePostModal
@@ -340,7 +396,77 @@ function createStyles(Colors: ColorTokens, isDark: boolean) {
       backgroundColor: Colors.background.canvas,
     },
     scrollContent: {
-      paddingBottom: 120, // Ample clearance for floating bottom bar
+      paddingBottom: 130, // Clearance for floating bottom bar and FAB
+    },
+    shareBarCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
+      borderRadius: 16,
+      borderWidth: 1.2,
+      borderColor: isDark ? '#1E293B' : 'rgba(15, 23, 42, 0.08)',
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      marginHorizontal: 16,
+      marginBottom: 14,
+      shadowColor: isDark ? '#000' : 'rgba(0,0,0,0.06)',
+      shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: isDark ? 0.2 : 0.06,
+      shadowRadius: 6,
+      elevation: 2,
+    },
+    shareBarAvatar: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: isDark ? '#0E7490' : Colors.primary.main,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    shareBarAvatarText: {
+      fontFamily: Typography.bold,
+      fontSize: 13,
+      fontWeight: '800',
+      color: '#FFFFFF',
+    },
+    shareBarInputMock: {
+      flex: 1,
+      paddingVertical: 6,
+    },
+    shareBarPlaceholder: {
+      fontFamily: Typography.regular,
+      fontSize: 13.5,
+      color: isDark ? '#64748B' : '#94A3B8',
+    },
+    shareBarPlusBtn: {
+      width: 30,
+      height: 30,
+      borderRadius: 15,
+      backgroundColor: '#2563EB',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    fabButton: {
+      position: 'absolute',
+      right: 20,
+      bottom: 90,
+      width: 54,
+      height: 54,
+      borderRadius: 27,
+      backgroundColor: '#2563EB',
+      alignItems: 'center',
+      justifyContent: 'center',
+      shadowColor: '#2563EB',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.45,
+      shadowRadius: 10,
+      elevation: 6,
+      zIndex: 40,
+    },
+    composerModalContainer: {
+      flex: 1,
+      paddingTop: 20,
     },
     centerBox: {
       paddingVertical: 50,

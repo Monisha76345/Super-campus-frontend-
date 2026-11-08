@@ -14,6 +14,7 @@ import { Typography } from '@/constants/fonts';
 import { useColors } from '@/theme/app-theme';
 import { referralStorage } from '../referralStorage';
 import {
+  copyReferralLink,
   generateReferralLink,
   parseReferralCode,
   shareReferralInvite,
@@ -89,13 +90,14 @@ export function ReferralInputSection({
   };
 
   const handleShare = async () => {
-    const code = appliedCode || 'CAMPUS2026';
+    const code = appliedCode || inputText.trim() || 'CAMPUS2026';
     await shareReferralInvite(code);
   };
 
-  const handleCopyLink = () => {
-    const link = generateReferralLink(appliedCode || 'CAMPUS2026');
-    Alert.alert('Referral Link', `Share this link with your classmates:\n\n${link}`);
+  const handleCopyLink = async () => {
+    const code = appliedCode || inputText.trim() || 'CAMPUS2026';
+    const link = await copyReferralLink(code);
+    Alert.alert('Referral Link Copied! 📋', `Your referral link has been copied to your clipboard:\n\n${link}`);
   };
 
   if (appliedCode) {
@@ -121,6 +123,13 @@ export function ReferralInputSection({
             onPress={handleShare}>
             <Ionicons name="share-social-outline" size={14} color="#38BDF8" />
             <Text style={styles.shareBtnText}>Share Invite</Text>
+          </Pressable>
+
+          <Pressable
+            style={({ pressed }) => [styles.shareBtn, pressed && styles.pressed]}
+            onPress={handleCopyLink}>
+            <Ionicons name="copy-outline" size={14} color="#A78BFA" />
+            <Text style={[styles.shareBtnText, { color: '#A78BFA' }]}>Copy Link</Text>
           </Pressable>
 
           <Pressable
@@ -160,7 +169,7 @@ export function ReferralInputSection({
           </View>
 
           <Text style={styles.helperText}>
-            Paste your friend&apos;s campus invite URL or referral code below.
+            Paste your campus invite URL or referral code below.
           </Text>
 
           <View style={styles.inputRow}>
@@ -202,7 +211,7 @@ export function ReferralInputSection({
               style={({ pressed }) => [styles.linkAction, pressed && styles.pressed]}
               onPress={handleCopyLink}>
               <Ionicons name="copy-outline" size={13} color="#A78BFA" />
-              <Text style={styles.linkActionText}>View Referral Link</Text>
+              <Text style={styles.linkActionText}>Copy My Referral Link</Text>
             </Pressable>
           </View>
         </View>

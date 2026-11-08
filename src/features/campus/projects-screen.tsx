@@ -10,6 +10,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 
@@ -18,6 +19,7 @@ import { Typography } from '@/constants/fonts';
 import { AppMessageModal, AppMessageType, LogoLoader } from '@/components/ui';
 import { useAuthSession } from '@/features/auth/session/AuthSessionProvider';
 import { useColors } from '@/theme/app-theme';
+import { uploadMediaToServer } from '@/lib/api/media-upload';
 
 import { CreateProjectWizard } from './components/projects/CreateProjectWizard';
 import { ProjectCard } from './components/projects/ProjectCard';
@@ -28,81 +30,40 @@ import {
   fetchProjectsApi,
   updateProjectStatusApi,
 } from './project-api';
-import { CreateProjectPayload, Project, ProjectStatus } from './project-types';
+import {
+  CreateProjectPayload,
+  Project,
+  ProjectCategory,
+  ProjectStatus,
+} from './project-types';
 
 type FilterTab = 'All' | 'Open' | 'Active' | 'Completed';
 
-const FALLBACK_STARTER_PROJECTS: Project[] = [
-  {
-    id: 'starter-1',
-    campusId: 'nmit',
-    creatorId: 'mock-user-1',
-    creatorName: 'Aarav Patel',
-    title: 'test',
-    shortDescription: 'test',
-    category: 'Academic',
-    stage: 'Idea',
-    status: 'OPEN',
-    duration: '3 – 6 Months',
-    location: 'NMIT North Campus',
-    visibility: 'CAMPUS_ONLY',
-    skills: ['React Native', 'Node.js'],
-    supportNeeds: [
-      {
-        serviceType: 'HIRE_STUDENTS',
-        rolesNeeded: 'Frontend Developer',
-        numberOfStudents: '2-4',
-        commitment: 'Part-time',
-      },
-    ],
-    media: [],
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 'starter-2',
-    campusId: 'nmit',
-    creatorId: 'mock-user-2',
-    creatorName: 'Rohan Sharma',
-    title: 'Cloud',
-    shortDescription: 'Cloud disaster management',
-    category: 'Startup',
-    stage: 'Idea',
-    status: 'OPEN',
-    duration: '3 – 6 Months',
-    location: 'NMIT North Campus',
-    visibility: 'CAMPUS_ONLY',
-    skills: ['AWS', 'Docker', 'Kubernetes'],
-    supportNeeds: [
-      {
-        serviceType: 'COLLEGE_FUNDING',
-        fundingDetails: 'Cloud compute credits',
-      },
-    ],
-    media: [],
-    createdAt: new Date(Date.now() - 3600000).toISOString(),
-    updatedAt: new Date(Date.now() - 3600000).toISOString(),
-  },
-  {
-    id: 'starter-3',
-    campusId: 'nmit',
-    creatorId: 'mock-user-3',
-    creatorName: 'Sneha Rao',
-    title: 'test push',
-    shortDescription: 'notifications',
-    category: 'Hackathon',
-    stage: 'Prototype',
-    status: 'OPEN',
-    duration: '1 – 3 Months',
-    location: 'NMIT North Campus',
-    visibility: 'CAMPUS_ONLY',
-    skills: ['Firebase', 'TypeScript'],
-    supportNeeds: [],
-    media: [],
-    createdAt: new Date(Date.now() - 7200000).toISOString(),
-    updatedAt: new Date(Date.now() - 7200000).toISOString(),
-  },
+const DOMAIN_OPTIONS = [
+  'All',
+  'AI/ML',
+  'Web Dev',
+  'Mobile Apps',
+  'Cloud & DevOps',
+  'IoT & Embedded',
+  'Cybersecurity',
+  'Robotics',
+  'Blockchain',
+  'Data Science',
 ];
+
+const CATEGORY_OPTIONS: (ProjectCategory | 'All')[] = [
+  'All',
+  'Academic',
+  'Hackathon',
+  'Startup',
+  'Research',
+  'Social impact',
+  'Open source',
+];
+
+const SUPPORT_OFFERED_OPTIONS = ['All', 'Hire Students', 'Hire Mentor'];
+const SUPPORT_REQUIRED_OPTIONS = ['All', 'College Funding', 'Crowdfunding'];
 
 export function ProjectsScreen() {
   const router = useRouter();
@@ -111,11 +72,18 @@ export function ProjectsScreen() {
 
   const { user } = useAuthSession();
   const token = user?.token;
-  const tenantId = user?.tenantId;
+  const tenantId = user?.tenantId || 'nmit';
 
   const [activeTab, setActiveTab] = useState<FilterTab>('All');
   const [myProjectsOnly, setMyProjectsOnly] = useState(false);
-  const [projects, setProjects] = useState<Project[]>(FALLBACK_STARTER_PROJECTS);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedDomain, setSelectedDomain] = useState('All');
+  const [selectedCategory, setSelectedCategory] = useState<ProjectCategory | 'All'>('All');
+  const [selectedSupportOffered, setSelectedSupportOffered] = useState('All');
+  const [selectedSupportRequired, setSelectedSupportRequired] = useState('All');
+  const [showFiltersModal, setShowFiltersModal] = useState(false);
+
+  const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -149,24 +117,53 @@ export function ProjectsScreen() {
   const loadProjects = useCallback(async () => {
     try {
       setLoading(true);
+
+      const supportOfferedParam =
+        selectedSupportOffered === 'Hire Students'
+          ? 'HIRE_STUDENTS'
+          : selectedSupportOffered === 'Hire Mentor'
+            ? 'HIRE_MENTOR'
+            : selectedSupportOffered === 'All'
+              ? undefined
+              : selectedSupportOffered;
+
+      const supportRequiredParam =
+        selectedSupportRequired === 'College Funding'
+          ? 'COLLEGE_FUNDING'
+          : selectedSupportRequired === 'Crowdfunding'
+            ? 'CROWDFUNDING'
+            : selectedSupportRequired === 'All'
+              ? undefined
+              : selectedSupportRequired;
+
       const fetched = await fetchProjectsApi(token, tenantId, {
         status: activeTab === 'All' ? undefined : (activeTab.toUpperCase() as ProjectStatus),
         mine: myProjectsOnly,
+        search: searchQuery.trim() || undefined,
+        domain: selectedDomain === 'All' ? undefined : selectedDomain,
+        category: selectedCategory === 'All' ? undefined : selectedCategory,
+        supportOffered: supportOfferedParam,
+        supportRequired: supportRequiredParam,
       });
-      if (fetched && fetched.length > 0) {
-        setProjects(fetched);
-      } else {
-        // If API returned empty array, use local list if offline or show empty
-        setProjects(fetched || []);
-      }
+
+      setProjects(fetched || []);
     } catch {
-      // Offline fallback: filter from local projects
-      // Keeps app smooth if backend is offline
+      // Keep existing list on transient network error
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [token, tenantId, activeTab, myProjectsOnly]);
+  }, [
+    token,
+    tenantId,
+    activeTab,
+    myProjectsOnly,
+    searchQuery,
+    selectedDomain,
+    selectedCategory,
+    selectedSupportOffered,
+    selectedSupportRequired,
+  ]);
 
   useEffect(() => {
     loadProjects();
@@ -177,51 +174,63 @@ export function ProjectsScreen() {
     loadProjects();
   };
 
-  // Filter local projects if working offline
-  const visibleProjects = useMemo(() => {
-    return projects.filter((p) => {
-      if (myProjectsOnly && user?.id && p.creatorId !== user.id) {
-        return false;
-      }
-      if (activeTab === 'All') return true;
-      return p.status === activeTab.toUpperCase();
-    });
-  }, [projects, activeTab, myProjectsOnly, user?.id]);
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (selectedDomain !== 'All') count++;
+    if (selectedCategory !== 'All') count++;
+    if (selectedSupportOffered !== 'All') count++;
+    if (selectedSupportRequired !== 'All') count++;
+    return count;
+  }, [selectedDomain, selectedCategory, selectedSupportOffered, selectedSupportRequired]);
+
+  const clearAllFilters = () => {
+    setSelectedDomain('All');
+    setSelectedCategory('All');
+    setSelectedSupportOffered('All');
+    setSelectedSupportRequired('All');
+    setSearchQuery('');
+  };
 
   const handleCreateProject = async (payload: CreateProjectPayload) => {
     try {
+      let finalPayload: CreateProjectPayload = { ...payload };
+
+      // Upload PDF to document-uploader if selected locally
+      if (
+        payload.pdfDocument?.uri &&
+        payload.pdfDocument.uri.startsWith('file://') &&
+        token &&
+        tenantId
+      ) {
+        try {
+          const remoteUrl = await uploadMediaToServer(
+            payload.pdfDocument.uri,
+            token,
+            tenantId,
+            'application/pdf',
+            'project',
+            'doc',
+          );
+          finalPayload.pdfDocument = {
+            ...payload.pdfDocument,
+            uri: remoteUrl,
+          };
+        } catch (uploadErr) {
+          console.warn('[PDF Upload] Upload fallback:', uploadErr);
+        }
+      }
+
       let created: Project;
       if (token && tenantId) {
-        created = await createProjectApi(token, tenantId, payload);
+        created = await createProjectApi(token, tenantId, finalPayload);
       } else {
-        // Local simulation fallback
-        created = {
-          id: `local-${Date.now()}`,
-          campusId: 'nmit',
-          creatorId: user?.id || 'current-user',
-          creatorName: user?.fullName || 'Me',
-          title: payload.title,
-          shortDescription: payload.shortDescription,
-          moreDetails: payload.moreDetails,
-          category: payload.category,
-          stage: payload.stage,
-          status: 'OPEN',
-          duration: payload.duration || '3 – 6 Months',
-          location: payload.location || 'NMIT North Campus',
-          visibility: payload.visibility || 'CAMPUS_ONLY',
-          skills: payload.skills || [],
-          supportNeeds: payload.supportNeeds || [],
-          media: [],
-          pdfDocument: payload.pdfDocument || null,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
+        throw new Error('Please sign in to publish a campus project.');
       }
 
       setProjects((current) => [created, ...current]);
       setShowWizard(false);
       setSelectedProject(created);
-      showModal('Success', 'Your project has been published!', 'success');
+      showModal('Success', 'Your project has been published to campus!', 'success');
     } catch (err: any) {
       showModal('Error', err?.message || 'Could not create project', 'error');
     }
@@ -300,10 +309,10 @@ export function ProjectsScreen() {
       {/* Top Header Bar */}
       <View style={styles.topBar}>
         <View style={styles.topBarLeft}>
-          <Pressable onPress={() => router.back()} style={styles.backBtn}>
+          <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={10}>
             <Ionicons name="arrow-back" size={22} color="#F8FAFC" />
           </Pressable>
-          <Text style={styles.topBarTitle}>Projects</Text>
+          <Text style={styles.topBarTitle}>Campus Projects</Text>
         </View>
 
         <View style={styles.topBarRight}>
@@ -315,7 +324,7 @@ export function ProjectsScreen() {
             <Text
               style={[styles.myProjectsText, myProjectsOnly && styles.myProjectsTextActive]}
             >
-              My projects
+              My Projects
             </Text>
           </Pressable>
 
@@ -323,6 +332,7 @@ export function ProjectsScreen() {
             accessibilityRole="button"
             onPress={onRefresh}
             style={styles.refreshBtn}
+            hitSlop={8}
           >
             <Ionicons name="refresh" size={20} color={Colors.text.secondary} />
           </Pressable>
@@ -345,7 +355,7 @@ export function ProjectsScreen() {
           <View style={styles.heroContent}>
             <Text style={styles.heroTitle}>Ideas become impact here</Text>
             <Text style={styles.heroSubtitle}>
-              Build a team, find a mentor, and get campus support.
+              Build a team, find a mentor, and get campus funding & grants.
             </Text>
 
             <Pressable
@@ -357,7 +367,7 @@ export function ProjectsScreen() {
               style={styles.createProjectBtn}
             >
               <Ionicons name="add" size={20} color={Colors.text.onBrand} />
-              <Text style={styles.createProjectBtnText}>Create project</Text>
+              <Text style={styles.createProjectBtnText}>Create Project</Text>
             </Pressable>
           </View>
 
@@ -365,6 +375,42 @@ export function ProjectsScreen() {
           <View style={styles.rocketIconWatermark}>
             <Ionicons name="rocket" size={90} color={Colors.border.subtle} />
           </View>
+        </View>
+
+        {/* Search Input with Filter Button */}
+        <View style={styles.searchRow}>
+          <View style={styles.searchInputWrapper}>
+            <Ionicons name="search" size={18} color={Colors.text.tertiary} style={{ marginRight: 8 }} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search projects by domain, title, tech stack..."
+              placeholderTextColor={Colors.text.tertiary}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              returnKeyType="search"
+            />
+            {searchQuery.length > 0 && (
+              <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>
+                <Ionicons name="close-circle" size={18} color={Colors.text.tertiary} />
+              </Pressable>
+            )}
+          </View>
+
+          <Pressable
+            style={[styles.filterTriggerBtn, activeFiltersCount > 0 && styles.filterTriggerBtnActive]}
+            onPress={() => setShowFiltersModal(true)}
+          >
+            <Ionicons
+              name="options-outline"
+              size={18}
+              color={activeFiltersCount > 0 ? '#FFFFFF' : Colors.text.primary}
+            />
+            {activeFiltersCount > 0 && (
+              <View style={styles.filterBadge}>
+                <Text style={styles.filterBadgeText}>{activeFiltersCount}</Text>
+              </View>
+            )}
+          </Pressable>
         </View>
 
         {/* Status Filter Tabs */}
@@ -384,28 +430,70 @@ export function ProjectsScreen() {
           })}
         </View>
 
+        {/* Quick Domain Filter Chips */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.domainChipsContainer}
+        >
+          {DOMAIN_OPTIONS.map((dom) => {
+            const isSel = selectedDomain === dom;
+            return (
+              <Pressable
+                key={dom}
+                style={[styles.domainChip, isSel && styles.domainChipActive]}
+                onPress={() => setSelectedDomain(dom)}
+              >
+                <Text style={[styles.domainChipText, isSel && styles.domainChipTextActive]}>
+                  {dom}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+
+        {/* Active Filters Summary Pill */}
+        {activeFiltersCount > 0 && (
+          <View style={styles.activeFiltersPillRow}>
+            <Text style={styles.activeFiltersPillText}>
+              Filters: {selectedCategory !== 'All' ? `${selectedCategory} • ` : ''}
+              {selectedSupportOffered !== 'All' ? `${selectedSupportOffered} • ` : ''}
+              {selectedSupportRequired !== 'All' ? `${selectedSupportRequired}` : ''}
+            </Text>
+            <Pressable onPress={clearAllFilters} hitSlop={6}>
+              <Text style={styles.clearFiltersText}>Reset</Text>
+            </Pressable>
+          </View>
+        )}
+
         {/* Projects List */}
         {loading && !refreshing ? (
           <LogoLoader size={48} text="Loading campus projects..." style={{ marginTop: 40 }} />
-        ) : visibleProjects.length === 0 ? (
+        ) : projects.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name="folder-open-outline" size={48} color={Colors.text.tertiary} />
             <Text style={styles.emptyTitle}>No projects found</Text>
             <Text style={styles.emptySubtitle}>
               {myProjectsOnly
                 ? "You haven't created any projects yet."
-                : `There are currently no ${activeTab.toLowerCase()} projects.`}
+                : 'No projects match your active search and filter criteria.'}
             </Text>
-            <Pressable
-              onPress={() => setShowWizard(true)}
-              style={[styles.createProjectBtn, { marginTop: 14 }]}
-            >
-              <Ionicons name="add" size={18} color={Colors.text.onBrand} />
-              <Text style={styles.createProjectBtnText}>Create first project</Text>
-            </Pressable>
+            {activeFiltersCount > 0 ? (
+              <Pressable onPress={clearAllFilters} style={styles.resetFiltersBtn}>
+                <Text style={styles.resetFiltersBtnText}>Clear All Filters</Text>
+              </Pressable>
+            ) : (
+              <Pressable
+                onPress={() => setShowWizard(true)}
+                style={[styles.createProjectBtn, { marginTop: 14 }]}
+              >
+                <Ionicons name="add" size={18} color={Colors.text.onBrand} />
+                <Text style={styles.createProjectBtnText}>Create first project</Text>
+              </Pressable>
+            )}
           </View>
         ) : (
-          visibleProjects.map((project) => (
+          projects.map((project) => (
             <ProjectCard
               key={project.id}
               project={project}
@@ -415,6 +503,82 @@ export function ProjectsScreen() {
           ))
         )}
       </ScrollView>
+
+      {/* FILTER DRAWER / MODAL */}
+      <Modal visible={showFiltersModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Search & Filter Projects</Text>
+              <Pressable onPress={() => setShowFiltersModal(false)}>
+                <Ionicons name="close" size={22} color={Colors.text.primary} />
+              </Pressable>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 420 }}>
+              {/* Category */}
+              <Text style={styles.filterSectionTitle}>Category</Text>
+              <View style={styles.filterOptionsGrid}>
+                {CATEGORY_OPTIONS.map((cat) => (
+                  <Pressable
+                    key={cat}
+                    style={[styles.filterOptionChip, selectedCategory === cat && styles.filterOptionChipActive]}
+                    onPress={() => setSelectedCategory(cat)}
+                  >
+                    <Text style={[styles.filterOptionText, selectedCategory === cat && styles.filterOptionTextActive]}>
+                      {cat}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+
+              {/* Support Offered */}
+              <Text style={styles.filterSectionTitle}>Support Offered</Text>
+              <View style={styles.filterOptionsGrid}>
+                {SUPPORT_OFFERED_OPTIONS.map((supp) => (
+                  <Pressable
+                    key={supp}
+                    style={[styles.filterOptionChip, selectedSupportOffered === supp && styles.filterOptionChipActive]}
+                    onPress={() => setSelectedSupportOffered(supp)}
+                  >
+                    <Text style={[styles.filterOptionText, selectedSupportOffered === supp && styles.filterOptionTextActive]}>
+                      {supp}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+
+              {/* Support Required */}
+              <Text style={styles.filterSectionTitle}>Funding & Grants Required</Text>
+              <View style={styles.filterOptionsGrid}>
+                {SUPPORT_REQUIRED_OPTIONS.map((supp) => (
+                  <Pressable
+                    key={supp}
+                    style={[styles.filterOptionChip, selectedSupportRequired === supp && styles.filterOptionChipActive]}
+                    onPress={() => setSelectedSupportRequired(supp)}
+                  >
+                    <Text style={[styles.filterOptionText, selectedSupportRequired === supp && styles.filterOptionTextActive]}>
+                      {supp}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </ScrollView>
+
+            <View style={styles.modalFooterRow}>
+              <Pressable style={styles.modalResetBtn} onPress={clearAllFilters}>
+                <Text style={styles.modalResetText}>Reset All</Text>
+              </Pressable>
+              <Pressable
+                style={styles.modalApplyBtn}
+                onPress={() => setShowFiltersModal(false)}
+              >
+                <Text style={styles.modalApplyText}>Apply Filters</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* 3-Step Create / Edit Project Wizard Modal */}
       <Modal visible={showWizard} animationType="slide" presentationStyle="pageSheet">
@@ -438,6 +602,10 @@ export function ProjectsScreen() {
         onEdit={handleEditProject}
         onStatusChange={handleStatusChange}
         onDelete={handleDeleteProject}
+        onProjectUpdated={(up) => {
+          setSelectedProject(up);
+          setProjects((curr) => curr.map((p) => (p.id === up.id ? up : p)));
+        }}
       />
 
       {/* Unified App Message Modal */}
@@ -447,8 +615,8 @@ export function ProjectsScreen() {
         title={modalConfig.title}
         message={modalConfig.message}
         onClose={() => {
-          modalConfig.onConfirm?.();
           setModalConfig((prev) => ({ ...prev, visible: false }));
+          modalConfig.onConfirm?.();
         }}
       />
     </View>
@@ -465,49 +633,56 @@ function createStyles(Colors: ColorTokens) {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      paddingHorizontal: 18,
-      paddingTop: 16,
+      paddingHorizontal: 16,
+      paddingTop: 48,
       paddingBottom: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: Colors.border.subtle,
+      backgroundColor: Colors.background.canvas,
     },
     topBarLeft: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 10,
+      gap: 12,
     },
     backBtn: {
       width: 36,
       height: 36,
       borderRadius: 18,
-      justifyContent: 'center',
+      backgroundColor: Colors.background.surface,
       alignItems: 'center',
+      justifyContent: 'center',
     },
     topBarTitle: {
       fontFamily: Typography.bold,
-      fontSize: 24,
-      fontWeight: '700',
+      fontSize: 20,
+      fontWeight: '800',
       color: Colors.text.primary,
     },
     topBarRight: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 12,
+      gap: 8,
     },
     myProjectsBtn: {
       paddingHorizontal: 12,
       paddingVertical: 6,
       borderRadius: 16,
-      backgroundColor: 'transparent',
+      borderWidth: 1,
+      borderColor: Colors.border.card,
+      backgroundColor: Colors.background.surface,
     },
     myProjectsBtnActive: {
-      backgroundColor: Colors.primary.glow,
+      backgroundColor: Colors.primary.accent + '20',
+      borderColor: Colors.primary.accent,
     },
     myProjectsText: {
       fontFamily: Typography.medium,
-      fontSize: 14,
-      fontWeight: '600',
+      fontSize: 12.5,
       color: Colors.text.secondary,
     },
     myProjectsTextActive: {
+      fontFamily: Typography.bold,
       color: Colors.primary.accent,
       fontWeight: '700',
     },
@@ -516,42 +691,38 @@ function createStyles(Colors: ColorTokens) {
       height: 36,
       borderRadius: 18,
       backgroundColor: Colors.background.surface,
-      justifyContent: 'center',
       alignItems: 'center',
-      borderWidth: 1,
-      borderColor: Colors.border.subtle,
+      justifyContent: 'center',
     },
     scrollContent: {
-      paddingHorizontal: 18,
+      padding: 16,
       paddingBottom: 40,
     },
     heroCard: {
-      position: 'relative',
-      borderRadius: 24,
       backgroundColor: Colors.background.surface,
+      borderRadius: 18,
+      padding: 20,
+      position: 'relative',
+      overflow: 'hidden',
       borderWidth: 1,
       borderColor: Colors.border.card,
-      overflow: 'hidden',
-      marginBottom: 20,
-      marginTop: 4,
+      marginBottom: 14,
     },
     heroContent: {
-      padding: 22,
       zIndex: 2,
     },
     heroTitle: {
       fontFamily: Typography.bold,
-      fontSize: 22,
-      fontWeight: '700',
+      fontSize: 20,
+      fontWeight: '800',
       color: Colors.text.primary,
-      marginBottom: 8,
+      marginBottom: 4,
     },
     heroSubtitle: {
       fontFamily: Typography.regular,
-      fontSize: 14,
-      lineHeight: 20,
+      fontSize: 13,
       color: Colors.text.secondary,
-      marginBottom: 18,
+      marginBottom: 16,
       maxWidth: '85%',
     },
     createProjectBtn: {
@@ -575,54 +746,268 @@ function createStyles(Colors: ColorTokens) {
       right: 12,
       top: 18,
       zIndex: 1,
+      opacity: 0.25,
     },
-    filterTabsRow: {
+    // Search row
+    searchRow: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 10,
-      marginBottom: 18,
+      marginBottom: 10,
+    },
+    searchInputWrapper: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: Colors.background.surface,
+      borderWidth: 1,
+      borderColor: Colors.border.card,
+      borderRadius: 12,
+      paddingHorizontal: 12,
+      height: 44,
+    },
+    searchInput: {
+      flex: 1,
+      fontFamily: Typography.medium,
+      fontSize: 13.5,
+      color: Colors.text.primary,
+      paddingVertical: 0,
+    },
+    filterTriggerBtn: {
+      width: 44,
+      height: 44,
+      borderRadius: 12,
+      backgroundColor: Colors.background.surface,
+      borderWidth: 1,
+      borderColor: Colors.border.card,
+      alignItems: 'center',
+      justifyContent: 'center',
+      position: 'relative',
+    },
+    filterTriggerBtnActive: {
+      backgroundColor: Colors.primary.accent,
+      borderColor: Colors.primary.accent,
+    },
+    filterBadge: {
+      position: 'absolute',
+      top: 6,
+      right: 6,
+      width: 14,
+      height: 14,
+      borderRadius: 7,
+      backgroundColor: '#EF4444',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    filterBadgeText: {
+      fontSize: 9,
+      color: '#FFFFFF',
+      fontWeight: '800',
+    },
+    filterTabsRow: {
+      flexDirection: 'row',
+      gap: 8,
+      marginBottom: 10,
     },
     tabPill: {
-      paddingHorizontal: 18,
-      paddingVertical: 8,
-      borderRadius: 20,
+      paddingHorizontal: 14,
+      paddingVertical: 7,
+      borderRadius: 18,
       backgroundColor: Colors.background.surface,
       borderWidth: 1,
       borderColor: Colors.border.card,
     },
     tabPillActive: {
-      backgroundColor: Colors.primary.main,
-      borderColor: Colors.primary.light,
+      backgroundColor: Colors.primary.accent,
+      borderColor: Colors.primary.accent,
     },
     tabText: {
       fontFamily: Typography.medium,
-      fontSize: 13,
-      fontWeight: '500',
+      fontSize: 12.5,
       color: Colors.text.secondary,
     },
     tabTextActive: {
+      fontFamily: Typography.bold,
       color: Colors.text.onBrand,
       fontWeight: '700',
+    },
+    // Domain chips
+    domainChipsContainer: {
+      gap: 8,
+      paddingBottom: 10,
+    },
+    domainChip: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 16,
+      backgroundColor: Colors.background.surface,
+      borderWidth: 1,
+      borderColor: Colors.border.subtle,
+    },
+    domainChipActive: {
+      borderColor: '#3B82F6',
+      backgroundColor: '#3B82F620',
+    },
+    domainChipText: {
+      fontFamily: Typography.medium,
+      fontSize: 11.5,
+      color: Colors.text.secondary,
+    },
+    domainChipTextActive: {
+      fontFamily: Typography.bold,
+      color: '#3B82F6',
+      fontWeight: '700',
+    },
+    activeFiltersPillRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: Colors.background.surface,
+      borderRadius: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 7,
+      marginBottom: 12,
+      borderWidth: 1,
+      borderColor: Colors.border.card,
+    },
+    activeFiltersPillText: {
+      fontFamily: Typography.medium,
+      fontSize: 11.5,
+      color: Colors.primary.accent,
+      flex: 1,
+    },
+    clearFiltersText: {
+      fontFamily: Typography.bold,
+      fontSize: 12,
+      color: '#EF4444',
+      marginLeft: 8,
     },
     emptyState: {
       alignItems: 'center',
       justifyContent: 'center',
-      paddingVertical: 50,
+      paddingVertical: 48,
     },
     emptyTitle: {
       fontFamily: Typography.bold,
-      fontSize: 18,
+      fontSize: 16,
       fontWeight: '700',
       color: Colors.text.primary,
       marginTop: 12,
-      marginBottom: 6,
+      marginBottom: 4,
     },
     emptySubtitle: {
       fontFamily: Typography.regular,
-      fontSize: 14,
-      color: Colors.text.tertiary,
+      fontSize: 13,
+      color: Colors.text.secondary,
       textAlign: 'center',
-      maxWidth: 280,
+      paddingHorizontal: 20,
+    },
+    resetFiltersBtn: {
+      marginTop: 14,
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 18,
+      backgroundColor: Colors.background.surface,
+      borderWidth: 1,
+      borderColor: Colors.border.card,
+    },
+    resetFiltersBtnText: {
+      fontFamily: Typography.bold,
+      fontSize: 12.5,
+      color: Colors.primary.accent,
+    },
+    // Filter Modal Sheet
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.75)',
+      justifyContent: 'flex-end',
+    },
+    modalSheet: {
+      backgroundColor: Colors.background.canvas,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      padding: 20,
+      paddingBottom: 34,
+    },
+    modalHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 16,
+    },
+    modalTitle: {
+      fontFamily: Typography.bold,
+      fontSize: 18,
+      fontWeight: '800',
+      color: Colors.text.primary,
+    },
+    filterSectionTitle: {
+      fontFamily: Typography.bold,
+      fontSize: 13,
+      color: Colors.text.secondary,
+      marginTop: 12,
+      marginBottom: 8,
+    },
+    filterOptionsGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+    },
+    filterOptionChip: {
+      paddingHorizontal: 12,
+      paddingVertical: 7,
+      borderRadius: 10,
+      backgroundColor: Colors.background.surface,
+      borderWidth: 1,
+      borderColor: Colors.border.card,
+    },
+    filterOptionChipActive: {
+      backgroundColor: Colors.primary.accent,
+      borderColor: Colors.primary.accent,
+    },
+    filterOptionText: {
+      fontFamily: Typography.medium,
+      fontSize: 12,
+      color: Colors.text.secondary,
+    },
+    filterOptionTextActive: {
+      fontFamily: Typography.bold,
+      color: '#FFFFFF',
+      fontWeight: '700',
+    },
+    modalFooterRow: {
+      flexDirection: 'row',
+      gap: 12,
+      marginTop: 20,
+    },
+    modalResetBtn: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 12,
+      borderRadius: 12,
+      backgroundColor: Colors.background.surface,
+      borderWidth: 1,
+      borderColor: Colors.border.card,
+    },
+    modalResetText: {
+      fontFamily: Typography.bold,
+      fontSize: 13,
+      color: Colors.text.secondary,
+    },
+    modalApplyBtn: {
+      flex: 2,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 12,
+      borderRadius: 12,
+      backgroundColor: Colors.primary.accent,
+    },
+    modalApplyText: {
+      fontFamily: Typography.bold,
+      fontSize: 13.5,
+      fontWeight: '700',
+      color: '#FFFFFF',
     },
   });
 }

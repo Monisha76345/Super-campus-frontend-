@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import React, { useMemo, useRef } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Pressable,
@@ -38,6 +38,8 @@ export function PostCard({
   const isDark = scheme === 'dark';
   const styles = useMemo(() => createStyles(Colors, isDark), [Colors, isDark]);
 
+  const [isExpanded, setIsExpanded] = useState(false);
+
   const isAuthor = currentUserId && post.authorId === currentUserId;
   const canManage = isAuthor || isAdmin;
 
@@ -47,7 +49,6 @@ export function PostCard({
   const heartOpacity = useRef(new Animated.Value(0)).current;
 
   const triggerDoubleTapHeart = () => {
-    // Like the post if not already liked
     if (!post.isLikedByMe) {
       onLike(post.id);
     }
@@ -83,12 +84,11 @@ export function PostCard({
     }
   };
 
-  // Helper to test if attachment is a video
   const isVideoUrl = (url: string) => {
-    return /\.(mp4|mov|m4v|webm)(\?.*)?$/i.test(url) || url.includes('/video/');
+    if (!url) return false;
+    return /\.(mp4|mov|m4v|webm)(\?.*)?$/i.test(url) || url.includes('/video/') || url.includes('type=video') || url.includes('ext=.mp4') || url.includes('.mp4') || url.includes('.mov');
   };
 
-  // Format date: e.g. Aug 25, 2026
   const formatDate = (dateStr: string) => {
     try {
       const d = new Date(dateStr);
@@ -102,7 +102,6 @@ export function PostCard({
     }
   };
 
-  // Format author display
   const authorInfo = useMemo(() => {
     const rawName = post.authorName || 'Campus Member';
     const rawHandle = post.authorHandle;
@@ -134,6 +133,11 @@ export function PostCard({
     };
   }, [post.authorName, post.authorHandle]);
 
+  const hasMedia = post.mediaUrls && post.mediaUrls.length > 0;
+  const contentIsLong = post.content && post.content.length > 90;
+  const displayedContent =
+    contentIsLong && !isExpanded ? `${post.content.slice(0, 90)}...` : post.content;
+
   return (
     <Pressable onPress={handleCardPress} style={styles.card}>
       {/* Animated Floating Double-Tap Heart Overlay */}
@@ -146,10 +150,10 @@ export function PostCard({
             transform: [{ scale: heartScale }],
           },
         ]}>
-        <Ionicons name="heart" size={84} color="#EC4899" />
+        <Ionicons name="heart" size={88} color="#EC4899" />
       </Animated.View>
 
-      {/* Author Header */}
+      {/* 1. Instagram-Style Header */}
       <View style={styles.headerRow}>
         <View style={styles.avatarCircle}>
           <Text style={styles.avatarText}>{authorInfo.initial}</Text>
@@ -160,90 +164,128 @@ export function PostCard({
           <Text style={styles.authorHandleAndDate}>
             {authorInfo.handle} · {formatDate(post.createdAt)}
           </Text>
-          <Text style={styles.campusTag}>
-            {post.campusId?.toUpperCase()} Main Campus
-          </Text>
         </View>
 
-        {/* Action icons for author/admin: Delete */}
-        {canManage && (
-          <View style={styles.manageActions}>
-            {onDeletePress && (
-              <Pressable
-                onPress={() => onDeletePress(post.id)}
-                hitSlop={8}
-                style={({ pressed }) => [styles.iconBtn, pressed && styles.pressed]}>
-                <Ionicons name="trash-outline" size={18} color="#EF4444" />
-              </Pressable>
-            )}
+        <View style={styles.headerRight}>
+          <View style={styles.campusTagPill}>
+            <Text style={styles.campusTagText}>
+              {post.campusId?.toUpperCase()}
+            </Text>
           </View>
-        )}
+
+          {canManage && onDeletePress && (
+            <Pressable
+              onPress={() => onDeletePress(post.id)}
+              hitSlop={8}
+              style={({ pressed }) => [styles.iconBtn, pressed && styles.pressed]}>
+              <Ionicons name="trash-outline" size={17} color="#EF4444" />
+            </Pressable>
+          )}
+        </View>
       </View>
 
-      {/* Post Text Content */}
-      {post.content ? <Text style={styles.contentBody}>{post.content}</Text> : null}
-
-      {/* Media Attachments Gallery (Images or Videos) */}
-      {post.mediaUrls && post.mediaUrls.length > 0 && (
+      {/* 2. Media Attachments FIRST (Instagram Layout: Big, Prominent Photos & Videos) */}
+      {hasMedia && (
         <View style={styles.mediaContainer}>
           {post.mediaUrls.map((url, idx) => {
             if (isVideoUrl(url)) {
-              return <PostVideoPlayer key={url + idx} uri={url} />;
+              return (
+                <PostVideoPlayer
+                  key={url + idx}
+                  uri={url}
+                  onLike={() => onLike(post.id)}
+                  isLiked={post.isLikedByMe}
+                />
+              );
             }
 
             return (
-              <View key={url + idx} style={styles.imageFrame}>
+              <Pressable key={url + idx} style={styles.imageFrame} onPress={handleCardPress}>
                 <Image
                   source={{ uri: url }}
                   style={styles.postImage}
                   contentFit="cover"
-                  transition={200}
+                  transition={250}
                 />
-              </View>
+              </Pressable>
             );
           })}
         </View>
       )}
 
-      {/* Interaction Footer: Likes, Comments & Share */}
-      <View style={styles.footerRow}>
-        {/* Like Button */}
-        <Pressable
-          onPress={() => onLike(post.id)}
-          hitSlop={8}
-          style={({ pressed }) => [styles.interactionButton, pressed && styles.pressed]}>
-          <Ionicons
-            name={post.isLikedByMe ? 'heart' : 'heart-outline'}
-            size={19}
-            color={post.isLikedByMe ? '#EC4899' : '#818CF8'}
-          />
-          <Text
-            style={[
-              styles.interactionText,
-              post.isLikedByMe && styles.likedText,
-            ]}>
-            {post.likeCount}
-          </Text>
-        </Pressable>
+      {/* 3. Interaction Bar: Like, Comment, Share */}
+      <View style={styles.actionRow}>
+        <View style={styles.actionLeft}>
+          {/* Like */}
+          <Pressable
+            onPress={() => onLike(post.id)}
+            hitSlop={8}
+            style={({ pressed }) => [styles.iconAction, pressed && styles.pressed]}>
+            <Ionicons
+              name={post.isLikedByMe ? 'heart' : 'heart-outline'}
+              size={24}
+              color={post.isLikedByMe ? '#EC4899' : isDark ? '#F1F5F9' : '#0F172A'}
+            />
+          </Pressable>
 
-        {/* Comment Button */}
+          {/* Comment */}
+          <Pressable
+            onPress={() => onCommentPress(post)}
+            hitSlop={8}
+            style={({ pressed }) => [styles.iconAction, pressed && styles.pressed]}>
+            <Ionicons
+              name="chatbubble-outline"
+              size={22}
+              color={isDark ? '#F1F5F9' : '#0F172A'}
+            />
+          </Pressable>
+
+          {/* Share */}
+          <Pressable
+            onPress={() => onSharePress?.(post)}
+            hitSlop={8}
+            style={({ pressed }) => [styles.iconAction, pressed && styles.pressed]}>
+            <Ionicons
+              name="paper-plane-outline"
+              size={22}
+              color={isDark ? '#F1F5F9' : '#0F172A'}
+            />
+          </Pressable>
+        </View>
+
+        <Text style={styles.likesCountText}>
+          {post.likeCount} {post.likeCount === 1 ? 'like' : 'likes'}
+        </Text>
+      </View>
+
+      {/* 4. Instagram Caption / Description with "more" button */}
+      {post.content ? (
+        <View style={styles.captionContainer}>
+          <Text style={styles.captionText}>
+            <Text style={styles.captionAuthor}>{authorInfo.displayName} </Text>
+            {displayedContent}
+            {contentIsLong && (
+              <Text
+                onPress={() => setIsExpanded((prev) => !prev)}
+                style={styles.moreButtonText}>
+                {isExpanded ? ' less' : ' more'}
+              </Text>
+            )}
+          </Text>
+        </View>
+      ) : null}
+
+      {/* 5. Comments Counter Link */}
+      {post.commentCount > 0 && (
         <Pressable
           onPress={() => onCommentPress(post)}
-          hitSlop={8}
-          style={({ pressed }) => [styles.interactionButton, pressed && styles.pressed]}>
-          <Ionicons name="chatbubble-outline" size={17} color="#818CF8" />
-          <Text style={styles.interactionText}>{post.commentCount}</Text>
+          hitSlop={4}
+          style={styles.viewCommentsLink}>
+          <Text style={styles.viewCommentsText}>
+            View all {post.commentCount} {post.commentCount === 1 ? 'comment' : 'comments'}
+          </Text>
         </Pressable>
-
-        {/* Share Button */}
-        <Pressable
-          onPress={() => onSharePress?.(post)}
-          hitSlop={8}
-          style={({ pressed }) => [styles.interactionButton, pressed && styles.pressed]}>
-          <Ionicons name="share-social-outline" size={18} color="#818CF8" />
-          <Text style={styles.interactionText}>Share</Text>
-        </Pressable>
-      </View>
+      )}
     </Pressable>
   );
 }
@@ -252,17 +294,18 @@ function createStyles(Colors: ColorTokens, isDark: boolean) {
   return StyleSheet.create({
     card: {
       backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
-      borderRadius: 20,
+      borderRadius: 18,
       borderWidth: 1.2,
       borderColor: isDark ? '#1E293B' : 'rgba(15, 23, 42, 0.08)',
-      padding: 16,
+      paddingVertical: 14,
+      paddingHorizontal: 14,
       marginHorizontal: 16,
       marginBottom: 16,
       shadowColor: isDark ? '#000' : 'rgba(0,0,0,0.06)',
       shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: isDark ? 0.2 : 0.08,
-      shadowRadius: 8,
-      elevation: 3,
+      shadowOpacity: isDark ? 0.25 : 0.08,
+      shadowRadius: 10,
+      elevation: 4,
       position: 'relative',
     },
     doubleTapHeartContainer: {
@@ -277,16 +320,16 @@ function createStyles(Colors: ColorTokens, isDark: boolean) {
     },
     headerRow: {
       flexDirection: 'row',
-      alignItems: 'flex-start',
-      gap: 12,
+      alignItems: 'center',
+      gap: 10,
       marginBottom: 12,
     },
     avatarCircle: {
-      width: 38,
-      height: 38,
-      borderRadius: 19,
+      width: 40,
+      height: 40,
+      borderRadius: 20,
       backgroundColor: isDark ? '#083344' : 'rgba(6, 182, 212, 0.12)',
-      borderWidth: 1.2,
+      borderWidth: 1.5,
       borderColor: isDark ? '#06B6D4' : '#0891B2',
       alignItems: 'center',
       justifyContent: 'center',
@@ -304,36 +347,36 @@ function createStyles(Colors: ColorTokens, isDark: boolean) {
       fontFamily: Typography.bold,
       fontSize: 14,
       fontWeight: '700',
-      color: Colors.text.primary,
+      color: isDark ? '#F8FAFC' : Colors.text.primary,
     },
     authorHandleAndDate: {
       fontFamily: Typography.regular,
-      fontSize: 11,
-      color: Colors.text.secondary,
+      fontSize: 11.5,
+      color: isDark ? '#94A3B8' : '#64748B',
       marginTop: 1,
     },
-    campusTag: {
-      fontFamily: Typography.medium,
-      fontSize: 10,
-      color: isDark ? '#38BDF8' : '#2563EB',
-      marginTop: 2,
-      letterSpacing: 0.3,
-    },
-    manageActions: {
+    headerRight: {
       flexDirection: 'row',
       alignItems: 'center',
+      gap: 8,
+    },
+    campusTagPill: {
+      backgroundColor: isDark ? 'rgba(56, 189, 248, 0.12)' : 'rgba(37, 99, 235, 0.08)',
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 6,
+    },
+    campusTagText: {
+      fontFamily: Typography.bold,
+      fontSize: 10,
+      color: '#38BDF8',
+      fontWeight: '700',
+      letterSpacing: 0.5,
     },
     iconBtn: {
       padding: 6,
       borderRadius: 8,
       backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#FEE2E2',
-    },
-    contentBody: {
-      fontFamily: Typography.regular,
-      fontSize: 13.5,
-      lineHeight: 20,
-      color: Colors.text.primary,
-      marginBottom: 12,
     },
     mediaContainer: {
       borderRadius: 14,
@@ -343,42 +386,67 @@ function createStyles(Colors: ColorTokens, isDark: boolean) {
     },
     imageFrame: {
       width: '100%',
-      height: 220,
-      borderRadius: 12,
+      aspectRatio: 1,
+      borderRadius: 14,
       overflow: 'hidden',
-      backgroundColor: isDark ? '#1E293B' : '#F1F5F9',
+      backgroundColor: isDark ? '#0F172A' : '#F1F5F9',
     },
     postImage: {
       width: '100%',
       height: '100%',
     },
-    footerRow: {
+    actionRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingTop: 8,
-      borderTopWidth: 1,
-      borderTopColor: isDark ? 'rgba(30, 41, 59, 0.6)' : 'rgba(15, 23, 42, 0.05)',
-      gap: 20,
+      justifyContent: 'space-between',
+      paddingVertical: 6,
+      marginBottom: 4,
     },
-    interactionButton: {
+    actionLeft: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 6,
-      paddingVertical: 4,
-      paddingHorizontal: 6,
+      gap: 16,
     },
-    interactionText: {
-      fontFamily: Typography.semiBold,
-      fontSize: 12.5,
-      color: isDark ? '#94A3B8' : '#64748B',
-      fontWeight: '600',
+    iconAction: {
+      padding: 2,
     },
-    likedText: {
-      color: '#EC4899',
+    likesCountText: {
+      fontFamily: Typography.bold,
+      fontSize: 13,
       fontWeight: '700',
+      color: isDark ? '#F1F5F9' : '#0F172A',
+    },
+    captionContainer: {
+      marginTop: 2,
+      marginBottom: 6,
+    },
+    captionText: {
+      fontFamily: Typography.regular,
+      fontSize: 13.5,
+      lineHeight: 20,
+      color: isDark ? '#E2E8F0' : '#1E293B',
+    },
+    captionAuthor: {
+      fontFamily: Typography.bold,
+      fontWeight: '700',
+      color: isDark ? '#F8FAFC' : '#0F172A',
+    },
+    moreButtonText: {
+      fontFamily: Typography.bold,
+      fontSize: 13,
+      fontWeight: '700',
+      color: '#38BDF8',
+    },
+    viewCommentsLink: {
+      marginTop: 2,
+    },
+    viewCommentsText: {
+      fontFamily: Typography.medium,
+      fontSize: 12,
+      color: isDark ? '#64748B' : '#94A3B8',
     },
     pressed: {
-      opacity: 0.75,
+      opacity: 0.7,
     },
   });
 }

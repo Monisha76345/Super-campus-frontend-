@@ -56,6 +56,7 @@ export function MarketplaceDetailModal({
   const [loadingAction, setLoadingAction] = useState(false);
   const [loadingActionText, setLoadingActionText] = useState('Processing...');
   const [contactSheetVisible, setContactSheetVisible] = useState(false);
+  const [fullscreenPhotoIndex, setFullscreenPhotoIndex] = useState<number | null>(null);
 
   const [modalConfig, setModalConfig] = useState<{
     visible: boolean;
@@ -264,21 +265,35 @@ export function MarketplaceDetailModal({
           <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
             {/* Main Photo Gallery / Placeholder */}
             {hasPhotos ? (
-              <ScrollView
-                horizontal
-                pagingEnabled
-                showsHorizontalScrollIndicator={false}
-                style={styles.gallery}
-              >
-                {item.images.map((uri, idx) => (
-                  <Image
-                    key={idx}
-                    source={{ uri }}
-                    style={styles.galleryImage}
-                    resizeMode="cover"
-                  />
-                ))}
-              </ScrollView>
+              <View style={{ position: 'relative' }}>
+                <ScrollView
+                  horizontal
+                  pagingEnabled
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.gallery}
+                >
+                  {(item.images || []).map((uri, idx) => (
+                    <Pressable
+                      key={idx}
+                      onPress={() => setFullscreenPhotoIndex(idx)}
+                    >
+                      <Image
+                        source={{ uri }}
+                        style={styles.galleryImage}
+                        resizeMode="cover"
+                      />
+                    </Pressable>
+                  ))}
+                </ScrollView>
+                <Pressable
+                  onPress={() => setFullscreenPhotoIndex(0)}
+                  style={styles.viewFullHintPill}
+                  hitSlop={8}
+                >
+                  <Ionicons name="expand" size={13} color="#FFFFFF" />
+                  <Text style={styles.viewFullHintText}>View Full Photo</Text>
+                </Pressable>
+              </View>
             ) : (
               <View style={styles.placeholderBox}>
                 <Ionicons name="storefront-outline" size={64} color={Colors.text.tertiary} />
@@ -583,7 +598,57 @@ export function MarketplaceDetailModal({
       />
 
       {loadingAction && <LogoLoader overlay text={loadingActionText} />}
-    </Modal>
+    
+      {/* Fullscreen Photo Lightbox Modal */}
+      <Modal
+        visible={fullscreenPhotoIndex !== null}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setFullscreenPhotoIndex(null)}
+      >
+        <View style={styles.fullscreenBackdrop}>
+          <View style={styles.fullscreenHeader}>
+            <Text style={styles.fullscreenCounter}>
+              {fullscreenPhotoIndex !== null ? `${fullscreenPhotoIndex + 1} / ${item.images.length}` : ''}
+            </Text>
+            <Pressable
+              onPress={() => setFullscreenPhotoIndex(null)}
+              style={styles.fullscreenCloseBtn}
+              hitSlop={12}
+            >
+              <Ionicons name="close" size={28} color="#FFFFFF" />
+            </Pressable>
+          </View>
+          {fullscreenPhotoIndex !== null && item.images[fullscreenPhotoIndex] && (
+            <View style={styles.fullscreenImageContainer}>
+              <Image
+                source={{ uri: item.images[fullscreenPhotoIndex] }}
+                style={styles.fullscreenImage}
+                resizeMode="contain"
+              />
+            </View>
+          )}
+          {item.images.length > 1 && (
+            <View style={styles.fullscreenNavRow}>
+              <Pressable
+                disabled={fullscreenPhotoIndex === 0}
+                onPress={() => setFullscreenPhotoIndex((prev) => Math.max(0, (prev || 0) - 1))}
+                style={[styles.fullscreenNavBtn, fullscreenPhotoIndex === 0 && { opacity: 0.3 }]}
+              >
+                <Ionicons name="chevron-back" size={26} color="#FFFFFF" />
+              </Pressable>
+              <Pressable
+                disabled={fullscreenPhotoIndex === item.images.length - 1}
+                onPress={() => setFullscreenPhotoIndex((prev) => Math.min(item.images.length - 1, (prev || 0) + 1))}
+                style={[styles.fullscreenNavBtn, fullscreenPhotoIndex === item.images.length - 1 && { opacity: 0.3 }]}
+              >
+                <Ionicons name="chevron-forward" size={26} color="#FFFFFF" />
+              </Pressable>
+            </View>
+          )}
+        </View>
+      </Modal>
+  </Modal>
   );
 }
 
@@ -1024,6 +1089,75 @@ function createStyles(Colors: ColorTokens) {
       fontSize: 12,
       color: Colors.text.secondary,
       marginTop: 1,
+    },
+    viewFullHintPill: {
+      position: 'absolute',
+      bottom: 12,
+      right: 12,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      backgroundColor: 'rgba(0, 0, 0, 0.65)',
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: 'rgba(255, 255, 255, 0.25)',
+    },
+    viewFullHintText: {
+      fontFamily: Typography.medium,
+      fontSize: 11.5,
+      color: '#FFFFFF',
+    },
+    fullscreenBackdrop: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.95)',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    fullscreenHeader: {
+      position: 'absolute',
+      top: 50,
+      left: 20,
+      right: 20,
+      zIndex: 20,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    fullscreenCounter: {
+      fontFamily: Typography.bold,
+      fontSize: 15,
+      color: '#FFFFFF',
+      letterSpacing: 0.5,
+    },
+    fullscreenCloseBtn: {
+      padding: 6,
+      borderRadius: 20,
+      backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    },
+    fullscreenImageContainer: {
+      width: '100%',
+      height: '80%',
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingHorizontal: 10,
+    },
+    fullscreenImage: {
+      width: '100%',
+      height: '100%',
+    },
+    fullscreenNavRow: {
+      position: 'absolute',
+      bottom: 40,
+      flexDirection: 'row',
+      gap: 30,
+      alignItems: 'center',
+    },
+    fullscreenNavBtn: {
+      padding: 12,
+      borderRadius: 24,
+      backgroundColor: 'rgba(255, 255, 255, 0.2)',
     },
   });
 }

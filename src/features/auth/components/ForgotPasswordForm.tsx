@@ -53,11 +53,15 @@ export function ForgotPasswordForm() {
   const handleRequestOtp = async () => {
     const trimmed = email.trim();
     if (!trimmed) {
-      setError('Please enter your college email');
+      setError('Please enter your USN or college email');
       return;
     }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
-      setError('Please enter a valid email address');
+
+    const isEmail = trimmed.includes('@');
+    const isUsn = /^[a-zA-Z0-9]{5,32}$/.test(trimmed);
+
+    if (!isEmail && !isUsn) {
+      setError('Please enter a valid USN (e.g. 1NT22AD015) or college email');
       return;
     }
 
@@ -71,7 +75,7 @@ export function ForgotPasswordForm() {
       setResendCooldown(45);
       setStep('otp');
     } catch (err: any) {
-      setError(err?.message || 'Failed to send verification code. Please check your email.');
+      setError(err?.message || 'Failed to send verification code. Please check your USN or email.');
     } finally {
       setLoading(false);
     }
@@ -88,7 +92,7 @@ export function ForgotPasswordForm() {
     setError(null);
     setLoading(true);
     try {
-      const res = await authApi.verifyForgotPasswordOtp(email, trimmedOtp);
+      const res = await authApi.verifyForgotPasswordOtp(email.trim(), trimmedOtp);
       setResetToken(res.resetToken);
       setStep('password');
     } catch (err: any) {
@@ -131,12 +135,12 @@ export function ForgotPasswordForm() {
     setError(null);
     setLoading(true);
     try {
-      const res = await authApi.requestForgotPasswordOtp(email);
+      const res = await authApi.requestForgotPasswordOtp(email.trim());
       if (res.debugOtp) {
         setDebugOtp(res.debugOtp);
       }
       setResendCooldown(45);
-      Alert.alert('Code Resent', 'A new verification code has been sent to your email.');
+      Alert.alert('Code Resent', 'A new verification code has been dispatched.');
     } catch (err: any) {
       setError(err?.message || 'Failed to resend verification code');
     } finally {
@@ -192,9 +196,9 @@ export function ForgotPasswordForm() {
 
       <Text style={styles.subtitle}>
         {step === 'email' &&
-          'Enter your registered college email and we will send you a 6-digit verification code.'}
+          'Enter your USN or registered college email and we will send you a 6-digit verification code.'}
         {step === 'otp' &&
-          `Enter the 6-digit code sent to ${email}.`}
+          `Enter the 6-digit code sent for account ${email}.`}
         {step === 'password' &&
           'Create a secure password with at least 8 characters for your campus account.'}
         {step === 'success' &&
@@ -226,14 +230,14 @@ export function ForgotPasswordForm() {
         </View>
       )}
 
-      {/* Step 1: Email Form */}
+      {/* Step 1: USN / Email Form */}
       {step === 'email' && (
         <View style={styles.formSection}>
           <Input
-            label="College email"
-            placeholder="1nt22ad015.druva@nmit.ac.in"
-            leftIcon="mail-outline"
-            keyboardType="email-address"
+            label="USN / Username"
+            placeholder="1NT22AD015 or student@nmit.ac.in"
+            leftIcon="school-outline"
+            keyboardType="default"
             autoCapitalize="none"
             autoCorrect={false}
             value={email}
@@ -296,7 +300,7 @@ export function ForgotPasswordForm() {
                 setError(null);
               }}
               hitSlop={8}>
-              <Text style={styles.changeEmailLink}>Change email</Text>
+              <Text style={styles.changeEmailLink}>Change account</Text>
             </Pressable>
           </View>
 

@@ -14,6 +14,7 @@ import { useLogin } from '../hooks/useLogin';
 import { AuthHeader } from './AuthHeader';
 import { SocialLoginRow } from './SocialLoginRow';
 import { ReferralInputSection } from '@/features/referral';
+import { copyReferralLink } from '@/features/referral/referralUtils';
 
 export function LoginForm() {
   const Colors = useColors();
@@ -84,6 +85,15 @@ export function LoginForm() {
     }
   };
 
+  const handleCopyAlumniReferral = async () => {
+    const code = usn.trim().toUpperCase() || 'ALUMNI2026';
+    const link = await copyReferralLink(code);
+    Alert.alert(
+      'Referral Link Copied! 📋',
+      `Your personal invite link:\n\n${link}\n\nCopied to clipboard! Share it with fellow alumni and students.`,
+    );
+  };
+
   return (
     <Animated.View entering={FadeInDown.duration(520).springify().damping(16)} style={styles.container}>
       <AuthHeader />
@@ -109,8 +119,8 @@ export function LoginForm() {
 
         {alumniMode ? (
           <Input
-            label="USN"
-            placeholder="1NT22AD015"
+            label="Alumni USN"
+            placeholder="1NT18CS001"
             leftIcon="school-outline"
             autoCapitalize="characters"
             autoCorrect={false}
@@ -122,9 +132,9 @@ export function LoginForm() {
           />
         ) : (
           <Input
-            label={superAdminMode ? 'Super Admin Account' : 'College email'}
-            placeholder={superAdminMode ? 'superadmin@supercampus.io' : '1nt22ad015.druva@nmit.ac.in'}
-            leftIcon={superAdminMode ? 'shield-outline' : 'mail-outline'}
+            label={superAdminMode ? 'Super Admin Account' : 'USN / Username'}
+            placeholder={superAdminMode ? 'superadmin@supercampus.io' : '1NT22AD015 or student@nmit.ac.in'}
+            leftIcon={superAdminMode ? 'shield-outline' : 'person-outline'}
             keyboardType="email-address"
             autoCapitalize="none"
             autoCorrect={false}
@@ -192,6 +202,16 @@ export function LoginForm() {
           style={styles.signInButton}
         />
 
+        {/* Alumni Copy Referral Link Button */}
+        {alumniMode && (
+          <Pressable
+            onPress={handleCopyAlumniReferral}
+            style={({ pressed }) => [styles.copyAlumniReferralBtn, pressed && styles.btnPressed]}>
+            <Ionicons name="copy-outline" size={15} color="#38BDF8" />
+            <Text style={styles.copyAlumniReferralText}>Copy My Referral Link</Text>
+          </Pressable>
+        )}
+
         {!superAdminMode && (
           <>
             <ReferralInputSection
@@ -207,7 +227,7 @@ export function LoginForm() {
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               style={styles.alumniSwitch}>
               <Text style={styles.forgotPasswordText}>
-                {alumniMode ? 'College email login' : 'Alumni? Submit USN and mobile'}
+                {alumniMode ? 'College login with USN / email' : 'Alumni? Submit USN and mobile'}
               </Text>
             </Pressable>
 
@@ -269,142 +289,163 @@ export function LoginForm() {
 
 function createStyles(Colors: ColorTokens) {
   return StyleSheet.create({
-  container: {
-    width: '100%',
-    maxWidth: 440,
-    alignSelf: 'center',
-    paddingVertical: 10,
-  },
-  card: {
-    padding: 24,
-  },
-  superAdminHeaderBadge: {
-    alignItems: 'center',
-    marginBottom: 16,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 14,
-    backgroundColor: 'rgba(56, 189, 248, 0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(56, 189, 248, 0.25)',
-  },
-  superAdminBadgePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 4,
-  },
-  superAdminHeaderTitle: {
-    fontFamily: Typography.bold,
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#38BDF8',
-    letterSpacing: 1.2,
-  },
-  superAdminHeaderSubtitle: {
-    fontFamily: Typography.regular,
-    fontSize: 11,
-    color: Colors.text.secondary,
-    textAlign: 'center',
-  },
-  errorBanner: {
-    backgroundColor: Colors.status.errorBackground,
-    borderColor: Colors.status.error,
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    marginBottom: 16,
-  },
-  errorBannerText: {
-    fontFamily: Typography.medium,
-    color: Colors.status.error,
-    fontSize: 13,
-    fontWeight: '500',
-    textAlign: 'center',
-  },
-  optionsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 4,
-    marginBottom: 24,
-  },
-  forgotPasswordText: {
-    fontFamily: Typography.semiBold,
-    color: Colors.primary.cyan,
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  signInButton: {
-    marginBottom: 12,
-  },
-  alumniSwitch: {
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  superAdminToggleBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    marginTop: 14,
-    paddingVertical: 6,
-  },
-  superAdminToggleText: {
-    fontFamily: Typography.medium,
-    fontSize: 12,
-    color: Colors.text.tertiary,
-    letterSpacing: 0.2,
-  },
-  superAdminToggleTextActive: {
-    color: '#38BDF8',
-    fontFamily: Typography.semiBold,
-    fontWeight: '600',
-  },
-  dividerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 4,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: Colors.border.subtle,
-  },
-  dividerText: {
-    fontFamily: Typography.medium,
-    color: Colors.text.tertiary,
-    fontSize: 12,
-    marginHorizontal: 12,
-    fontWeight: '500',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  footerRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 26,
-    marginBottom: 16,
-  },
-  footerText: {
-    fontFamily: Typography.regular,
-    color: Colors.text.secondary,
-    fontSize: 14,
-  },
-  footerAdminText: {
-    fontFamily: Typography.regular,
-    color: Colors.text.tertiary,
-    fontSize: 11,
-    textAlign: 'center',
-    letterSpacing: 0.3,
-  },
-  signUpLink: {
-    fontFamily: Typography.bold,
-    color: Colors.primary.light,
-    fontSize: 14,
-    fontWeight: '700',
-  },
-});
+    container: {
+      width: '100%',
+      maxWidth: 440,
+      alignSelf: 'center',
+      paddingVertical: 10,
+    },
+    card: {
+      padding: 24,
+    },
+    superAdminHeaderBadge: {
+      alignItems: 'center',
+      marginBottom: 16,
+      paddingVertical: 10,
+      paddingHorizontal: 12,
+      borderRadius: 14,
+      backgroundColor: 'rgba(56, 189, 248, 0.08)',
+      borderWidth: 1,
+      borderColor: 'rgba(56, 189, 248, 0.25)',
+    },
+    superAdminBadgePill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      marginBottom: 4,
+    },
+    superAdminHeaderTitle: {
+      fontFamily: Typography.bold,
+      fontSize: 12,
+      fontWeight: '700',
+      color: '#38BDF8',
+      letterSpacing: 1.2,
+    },
+    superAdminHeaderSubtitle: {
+      fontFamily: Typography.regular,
+      fontSize: 11,
+      color: Colors.text.secondary,
+      textAlign: 'center',
+    },
+    errorBanner: {
+      backgroundColor: Colors.status.errorBackground,
+      borderColor: Colors.status.error,
+      borderWidth: 1,
+      borderRadius: 12,
+      paddingVertical: 10,
+      paddingHorizontal: 14,
+      marginBottom: 16,
+    },
+    errorBannerText: {
+      fontFamily: Typography.medium,
+      color: Colors.status.error,
+      fontSize: 13,
+      fontWeight: '500',
+      textAlign: 'center',
+    },
+    optionsRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginTop: 4,
+      marginBottom: 24,
+    },
+    forgotPasswordText: {
+      fontFamily: Typography.semiBold,
+      color: Colors.primary.cyan,
+      fontSize: 13,
+      fontWeight: '600',
+    },
+    signInButton: {
+      marginBottom: 12,
+    },
+    copyAlumniReferralBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      paddingVertical: 10,
+      marginBottom: 12,
+      borderRadius: 10,
+      backgroundColor: 'rgba(56, 189, 248, 0.1)',
+      borderWidth: 1,
+      borderColor: 'rgba(56, 189, 248, 0.3)',
+    },
+    copyAlumniReferralText: {
+      fontFamily: Typography.semiBold,
+      fontSize: 13,
+      color: '#38BDF8',
+      fontWeight: '600',
+    },
+    btnPressed: {
+      opacity: 0.7,
+    },
+    alumniSwitch: {
+      alignItems: 'center',
+      marginBottom: 16,
+    },
+    superAdminToggleBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      marginTop: 14,
+      paddingVertical: 6,
+    },
+    superAdminToggleText: {
+      fontFamily: Typography.medium,
+      fontSize: 12,
+      color: Colors.text.tertiary,
+      letterSpacing: 0.2,
+    },
+    superAdminToggleTextActive: {
+      color: '#38BDF8',
+      fontFamily: Typography.semiBold,
+      fontWeight: '600',
+    },
+    dividerRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginVertical: 4,
+    },
+    dividerLine: {
+      flex: 1,
+      height: 1,
+      backgroundColor: Colors.border.subtle,
+    },
+    dividerText: {
+      fontFamily: Typography.medium,
+      color: Colors.text.tertiary,
+      fontSize: 12,
+      marginHorizontal: 12,
+      fontWeight: '500',
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+    },
+    footerRow: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginTop: 26,
+      marginBottom: 16,
+    },
+    footerText: {
+      fontFamily: Typography.regular,
+      color: Colors.text.secondary,
+      fontSize: 14,
+    },
+    footerAdminText: {
+      fontFamily: Typography.regular,
+      color: Colors.text.tertiary,
+      fontSize: 11,
+      textAlign: 'center',
+      letterSpacing: 0.3,
+    },
+    signUpLink: {
+      fontFamily: Typography.bold,
+      color: Colors.primary.light,
+      fontSize: 14,
+      fontWeight: '700',
+    },
+  });
 }

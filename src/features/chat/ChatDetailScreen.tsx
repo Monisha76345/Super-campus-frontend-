@@ -1,3 +1,6 @@
+import * as ImagePicker from 'expo-image-picker';
+import { uploadMediaToServer } from '@/lib/api/media-upload';
+import { PostVideoPlayer } from '@/features/community/components/PostVideoPlayer';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { StatusBar } from 'expo-status-bar';
@@ -66,6 +69,8 @@ export function ChatDetailScreen({
   const [refreshing, setRefreshing] = useState(false);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
+  const [selectedMedia, setSelectedMedia] = useState<{ uri: string; type: 'IMAGE' | 'VIDEO' } | null>(null);
+  const [uploadingMedia, setUploadingMedia] = useState(false);
   const flatListRef = useRef<FlatList>(null);
 
   // Group Info Modal & Edit states
@@ -250,49 +255,117 @@ export function ChatDetailScreen({
     );
   };
 
+  const handlePickMedia = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.All,
+        allowsEditing: true,
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]?.uri) {
+        const asset = result.assets[0];
+        const isVideo = asset.type === 'video' || asset.uri.endsWith('.mp4') || asset.uri.endsWith('.mov');
+        setSelectedMedia({
+          uri: asset.uri,
+          type: isVideo ? 'VIDEO' : 'IMAGE',
+        });
+      }
+    } catch (e: any) {
+      Alert.alert('Media Error', e?.message || 'Failed to select media');
+    }
+  };
+
+  const handleUpdateGroupPhoto = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]?.uri) {
+        const uploadedUrl = await uploadMediaToServer(
+          result.assets[0].uri,
+          token,
+          tenantId,
+          'image/jpeg',
+          'chat_group',
+        );
+        const updated = await updateGroupChatApi(token, tenantId, threadId, {
+          photoKey: uploadedUrl,
+        });
+        setThreadDetails(updated);
+        Alert.alert('Success', 'Group profile photo updated!');
+      }
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Failed to update group photo');
+    }
+  };
+
   const handleSend = async () => {
     const text = draft.trim();
-    if (!text || sending) return;
+    if ((!text && !selectedMedia) || sending) return;
 
     if (text.length > 2000) {
       return;
     }
 
     setSending(true);
-    const tempId = `temp-${Date.now()}`;
-    const optimisticMsg: ChatMessage = {
-      id: tempId,
-      threadId,
-      senderId: user?.id || 'me',
-      senderName: user?.fullName || 'Me',
-      senderUsn: null,
-      content: text,
-      status: 'SENT',
-      isMine: true,
-      createdAt: new Date().toISOString(),
-      formattedTime: new Date()
-        .toLocaleTimeString('en-US', {
-          hour: 'numeric',
-          minute: '2-digit',
-          hour12: true,
-        })
-        .toLowerCase(),
-    };
-
-    setMessages((prev) => [...prev, optimisticMsg]);
-    setDraft('');
+    let uploadedMediaUrl: string | undefined;
+    const mediaType = selectedMedia?.type;
 
     try {
-      const saved = await sendMessageApi(token, tenantId, threadId, text);
+      if (selectedMedia) {
+        setUploadingMedia(true);
+        const mime = selectedMedia.type === 'VIDEO' ? 'video/mp4' : 'image/jpeg';
+        uploadedMediaUrl = await uploadMediaToServer(
+          selectedMedia.uri,
+          token,
+          tenantId,
+          mime,
+          'chat_attachment',
+        );
+      }
+
+      const tempId = `temp-${Date.now()}`;
+      const optimisticMsg: ChatMessage = {
+        id: tempId,
+        threadId,
+        senderId: user?.id || 'me',
+        senderName: user?.fullName || 'Me',
+        senderUsn: null,
+        content: text,
+        mediaUrl: uploadedMediaUrl || selectedMedia?.uri || null,
+        mediaType: mediaType || null,
+        status: 'SENT',
+        isMine: true,
+        createdAt: new Date().toISOString(),
+        formattedTime: new Date()
+          .toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true,
+          })
+          .toLowerCase(),
+      };
+
+      setMessages((prev) => [...prev, optimisticMsg]);
+      setDraft('');
+      setSelectedMedia(null);
+
+      const saved = await sendMessageApi(token, tenantId, threadId, text, uploadedMediaUrl, mediaType);
       setMessages((prev) => prev.map((m) => (m.id === tempId ? saved : m)));
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
       }, 100);
-    } catch (err) {
+    } catch (err: any) {
       console.warn('Failed to send message:', err);
-      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      Alert.alert('Send Failed', err?.message || 'Could not send message.');
     } finally {
       setSending(false);
+      setUploadingMedia(false);
     }
   };
 
@@ -300,6 +373,7 @@ export function ChatDetailScreen({
     const isMine = Boolean(
       item.senderId === 'me' || (user?.id ? item.senderId === user.id : item.isMine),
     );
+    const senderPhoto = profilePhotoUri(item.senderPhotoKey ?? null);
 
     return (
       <View
@@ -307,11 +381,17 @@ export function ChatDetailScreen({
           styles.messageRow,
           isMine ? styles.messageRowMine : styles.messageRowTheirs,
         ]}>
-        {!isMine && isGroup && (
-          <View style={styles.groupSenderAvatar}>
-            <Text style={styles.groupSenderAvatarText}>
-              {(item.senderInitials || item.senderName?.slice(0, 2) || 'U').toUpperCase()}
-            </Text>
+        {!isMine && (
+          <View style={styles.senderAvatarContainer}>
+            {senderPhoto ? (
+              <Image source={{ uri: senderPhoto }} style={styles.senderAvatarImg} contentFit="cover" />
+            ) : (
+              <View style={styles.groupSenderAvatar}>
+                <Text style={styles.groupSenderAvatarText}>
+                  {(item.senderInitials || item.senderName?.slice(0, 2) || 'U').toUpperCase()}
+                </Text>
+              </View>
+            )}
           </View>
         )}
         <View
@@ -322,9 +402,27 @@ export function ChatDetailScreen({
           {!isMine && isGroup && (
             <Text style={styles.groupSenderName}>{item.senderName}</Text>
           )}
-          <Text style={[styles.bubbleText, isMine ? styles.bubbleTextMine : styles.bubbleTextTheirs]}>
-            {item.content}
-          </Text>
+
+          {/* Media Attachments: Image or Video */}
+          {Boolean(item.mediaUrl) && (
+            <View style={styles.messageMediaBox}>
+              {item.mediaType === 'VIDEO' || item.mediaUrl?.includes('type=video') ? (
+                <PostVideoPlayer uri={item.mediaUrl!} />
+              ) : (
+                <Image
+                  source={{ uri: item.mediaUrl! }}
+                  style={styles.messageMediaImage}
+                  contentFit="cover"
+                />
+              )}
+            </View>
+          )}
+
+          {Boolean(item.content) && (
+            <Text style={[styles.bubbleText, isMine ? styles.bubbleTextMine : styles.bubbleTextTheirs]}>
+              {item.content}
+            </Text>
+          )}
           <Text style={[styles.bubbleTime, isMine ? styles.bubbleTimeMine : styles.bubbleTimeTheirs]}>
             {item.formattedTime}
           </Text>
@@ -469,11 +567,43 @@ export function ChatDetailScreen({
 
       {/* Bottom Composer Container */}
       <View style={[styles.composerContainer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+        {/* Pending Attachment Preview */}
+        {selectedMedia && (
+          <View style={styles.mediaPreviewBar}>
+            <View style={styles.mediaPreviewThumb}>
+              {selectedMedia.type === 'VIDEO' ? (
+                <View style={styles.videoThumbBox}>
+                  <Ionicons name="videocam" size={20} color="#FFFFFF" />
+                  <Text style={styles.videoThumbLabel}>Video</Text>
+                </View>
+              ) : (
+                <Image source={{ uri: selectedMedia.uri }} style={styles.previewImg} contentFit="cover" />
+              )}
+            </View>
+            <Text style={styles.mediaPreviewText} numberOfLines={1}>
+              {selectedMedia.type === 'VIDEO' ? 'Attached Video (Ready to send)' : 'Attached Photo (Ready to send)'}
+            </Text>
+            <Pressable onPress={() => setSelectedMedia(null)} style={styles.mediaRemoveBtn} hitSlop={10}>
+              <Ionicons name="close-circle" size={20} color="#EF4444" />
+            </Pressable>
+          </View>
+        )}
+
         <View style={styles.inputWrapper}>
+          {/* Media Picker Button */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Attach photo or video"
+            onPress={handlePickMedia}
+            style={styles.attachBtn}
+            hitSlop={8}>
+            <Ionicons name="image-outline" size={22} color={isDark ? '#38BDF8' : Colors.primary.main} />
+          </Pressable>
+
           <TextInput
             value={draft}
             onChangeText={setDraft}
-            placeholder="Write a message..."
+            placeholder={selectedMedia ? 'Add a caption...' : 'Write a message...'}
             placeholderTextColor={isDark ? '#64748B' : Colors.text.secondary}
             multiline
             maxLength={2000}
@@ -482,13 +612,13 @@ export function ChatDetailScreen({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Send message"
-            disabled={!draft.trim() || sending}
+            disabled={(!draft.trim() && !selectedMedia) || sending}
             onPress={handleSend}
             style={[
               styles.sendCircleBtn,
-              draft.trim().length > 0 && styles.sendCircleBtnActive,
+              (draft.trim().length > 0 || Boolean(selectedMedia)) && styles.sendCircleBtnActive,
             ]}>
-            {sending ? (
+            {sending || uploadingMedia ? (
               <ActivityIndicator size="small" color="#FFFFFF" />
             ) : (
               <Ionicons name="send" size={18} color="#FFFFFF" style={{ marginLeft: 2 }} />
@@ -528,9 +658,16 @@ export function ChatDetailScreen({
             <ScrollView contentContainerStyle={styles.modalContent}>
               {/* Group Hero Card */}
               <View style={styles.groupInfoHero}>
-                <View style={styles.groupHeroAvatar}>
-                  <Ionicons name="people" size={44} color="#FFFFFF" />
-                </View>
+                <Pressable onPress={handleUpdateGroupPhoto} style={styles.groupHeroAvatar} hitSlop={10}>
+                  {threadDetails?.photoKey ? (
+                    <Image source={{ uri: threadDetails.photoKey }} style={styles.groupHeroAvatarImg} contentFit="cover" />
+                  ) : (
+                    <Ionicons name="people" size={44} color="#FFFFFF" />
+                  )}
+                  <View style={styles.groupHeroCameraBadge}>
+                    <Ionicons name="camera" size={14} color="#FFFFFF" />
+                  </View>
+                </Pressable>
 
                 {/* Edit Group Name Section */}
                 {isEditingName ? (
@@ -774,6 +911,93 @@ export function ChatDetailScreen({
 
 function createStyles(Colors: ColorTokens, isDark: boolean) {
   return StyleSheet.create({
+    attachBtn: {
+      paddingHorizontal: 8,
+      paddingVertical: 6,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    senderAvatarContainer: {
+      marginRight: 8,
+      marginBottom: 4,
+    },
+    senderAvatarImg: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: '#0284C7',
+    },
+    messageMediaBox: {
+      width: 240,
+      borderRadius: 12,
+      overflow: 'hidden',
+      marginBottom: 6,
+      backgroundColor: '#000000',
+    },
+    messageMediaImage: {
+      width: '100%',
+      height: 200,
+      borderRadius: 12,
+    },
+    mediaPreviewBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: isDark ? '#1E293B' : '#F1F5F9',
+      padding: 8,
+      borderRadius: 12,
+      marginBottom: 8,
+      gap: 10,
+    },
+    mediaPreviewThumb: {
+      width: 44,
+      height: 44,
+      borderRadius: 8,
+      overflow: 'hidden',
+      backgroundColor: '#000000',
+    },
+    previewImg: {
+      width: '100%',
+      height: '100%',
+    },
+    videoThumbBox: {
+      width: '100%',
+      height: '100%',
+      backgroundColor: '#0284C7',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    videoThumbLabel: {
+      fontSize: 9,
+      fontWeight: '700',
+      color: '#FFFFFF',
+    },
+    mediaPreviewText: {
+      flex: 1,
+      fontSize: 12,
+      fontWeight: '600',
+      color: Colors.text.primary,
+    },
+    mediaRemoveBtn: {
+      padding: 4,
+    },
+    groupHeroAvatarImg: {
+      width: '100%',
+      height: '100%',
+      borderRadius: 44,
+    },
+    groupHeroCameraBadge: {
+      position: 'absolute',
+      bottom: 2,
+      right: 2,
+      backgroundColor: '#10B981',
+      width: 26,
+      height: 26,
+      borderRadius: 13,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 2,
+      borderColor: '#FFFFFF',
+    },
     screen: {
       flex: 1,
       backgroundColor: Colors.background.canvas,

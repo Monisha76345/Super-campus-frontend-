@@ -2,7 +2,11 @@ export type SportType =
   | 'BADMINTON'
   | 'BASKETBALL'
   | 'PICKLEBALL'
-  | 'TABLE_TENNIS';
+  | 'TABLE_TENNIS'
+  | 'FOOTBALL'
+  | 'TENNIS'
+  | 'CRICKET'
+  | 'OTHER';
 
 
 export type VenueType = 'INDOOR' | 'OUTDOOR';

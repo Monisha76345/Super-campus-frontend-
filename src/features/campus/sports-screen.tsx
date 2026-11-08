@@ -76,8 +76,7 @@ export function SportsScreen() {
   const isAdmin =
     roleNorm === 'admin' ||
     roleNorm === 'superadmin' ||
-    roleNorm === 'campus_admin' ||
-    roleNorm === 'faculty';
+    roleNorm === 'campus_admin';
 
   // Modals & sport preselection
   const [chooseSportVisible, setChooseSportVisible] = useState(false);

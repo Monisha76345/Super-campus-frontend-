@@ -47,11 +47,8 @@ export function AuthSessionProvider({ children }: { children: React.ReactNode })
       isReady,
       signIn: async (session, remember) => {
         setUser(session);
-        if (remember) {
-          await sessionStorage.write(session);
-          return;
-        }
-        await sessionStorage.clear();
+        // Persist session so tokens are always available for authenticated API calls
+        await sessionStorage.write(session);
       },
       signOut: async () => {
         setUser(null);

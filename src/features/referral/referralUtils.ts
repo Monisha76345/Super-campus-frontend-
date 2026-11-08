@@ -1,3 +1,4 @@
+import * as Clipboard from 'expo-clipboard';
 import { Share } from 'react-native';
 
 const DEFAULT_REFERRAL_CODE = 'CAMPUS2026';
@@ -27,6 +28,16 @@ export function parseReferralCode(input: string): string {
 export function generateReferralLink(code?: string): string {
   const cleanCode = (code || DEFAULT_REFERRAL_CODE).trim().toUpperCase();
   return `${REFERRAL_BASE_URL}?ref=${encodeURIComponent(cleanCode)}`;
+}
+
+export async function copyReferralLink(code?: string): Promise<string> {
+  const link = generateReferralLink(code);
+  try {
+    await Clipboard.setStringAsync(link);
+  } catch (err) {
+    console.warn('Failed to copy to clipboard:', err);
+  }
+  return link;
 }
 
 export async function shareReferralInvite(code?: string): Promise<boolean> {

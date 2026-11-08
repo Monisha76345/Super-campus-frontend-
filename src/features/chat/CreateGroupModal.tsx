@@ -1,9 +1,12 @@
+import * as ImagePicker from 'expo-image-picker';
+import { uploadMediaToServer } from '@/lib/api/media-upload';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { StatusBar } from 'expo-status-bar';
 import React, { useMemo, useState, useEffect } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Modal,
   Platform,
@@ -46,6 +49,9 @@ export function CreateGroupModal({
   const styles = useMemo(() => createStyles(Colors, isDark), [Colors, isDark]);
 
   const [groupName, setGroupName] = useState('');
+  const [groupPhotoUri, setGroupPhotoUri] = useState<string | null>(null);
+  const [groupPhotoKey, setGroupPhotoKey] = useState<string | null>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedUsers, setSelectedUsers] = useState<SearchUser[]>([]);
   const [searching, setSearching] = useState(false);
@@ -57,6 +63,8 @@ export function CreateGroupModal({
   useEffect(() => {
     if (visible) {
       setGroupName('');
+      setGroupPhotoUri(null);
+      setGroupPhotoKey(null);
       setSearchQuery('');
       setSelectedUsers([]);
       setSearchResults([]);
@@ -106,6 +114,33 @@ export function CreateGroupModal({
     setSelectedUsers((prev) => prev.filter((u) => u.userId !== userId));
   };
 
+  const handlePickGroupPhoto = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+      if (!result.canceled && result.assets[0]?.uri) {
+        setUploadingPhoto(true);
+        const uploadedUrl = await uploadMediaToServer(
+          result.assets[0].uri,
+          token,
+          tenantId,
+          'image/jpeg',
+          'chat_group',
+        );
+        setGroupPhotoUri(result.assets[0].uri);
+        setGroupPhotoKey(uploadedUrl);
+      }
+    } catch (e: any) {
+      Alert.alert('Photo Error', e?.message || 'Could not pick group photo.');
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
   const handleCreateGroup = async () => {
     const trimmedName = groupName.trim();
     if (!trimmedName) {
@@ -121,7 +156,7 @@ export function CreateGroupModal({
     setErrorMessage(null);
     try {
       const memberUserIds = selectedUsers.map((u) => u.userId);
-      const newThread = await createGroupChatApi(token, tenantId, trimmedName, memberUserIds);
+      const newThread = await createGroupChatApi(token, tenantId, trimmedName, memberUserIds, groupPhotoKey || undefined);
       onGroupCreated(newThread);
     } catch (err: any) {
       setErrorMessage(err?.message || 'Failed to create group. Please try again.');
@@ -225,9 +260,18 @@ export function CreateGroupModal({
 
         {/* Group Name Input & Avatar Icon */}
         <View style={styles.groupInputSection}>
-          <View style={styles.groupAvatarCircle}>
-            <Ionicons name="people" size={26} color="#FFFFFF" />
-          </View>
+          <Pressable onPress={handlePickGroupPhoto} style={styles.groupAvatarCircle} hitSlop={8}>
+            {uploadingPhoto ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : groupPhotoUri ? (
+              <Image source={{ uri: groupPhotoUri }} style={styles.groupAvatarImg} contentFit="cover" />
+            ) : (
+              <Ionicons name="camera" size={22} color="#FFFFFF" />
+            )}
+            <View style={styles.groupAvatarBadge}>
+              <Ionicons name="add" size={10} color="#FFFFFF" />
+            </View>
+          </Pressable>
           <TextInput
             value={groupName}
             onChangeText={(text) => {
@@ -404,6 +448,26 @@ function createStyles(Colors: ColorTokens, isDark: boolean) {
       alignItems: 'center',
       justifyContent: 'center',
       marginRight: 12,
+      position: 'relative',
+      overflow: 'hidden',
+    },
+    groupAvatarImg: {
+      width: '100%',
+      height: '100%',
+      borderRadius: 24,
+    },
+    groupAvatarBadge: {
+      position: 'absolute',
+      bottom: 0,
+      right: 0,
+      backgroundColor: '#10B981',
+      width: 16,
+      height: 16,
+      borderRadius: 8,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1.5,
+      borderColor: '#FFFFFF',
     },
     groupNameInput: {
       flex: 1,

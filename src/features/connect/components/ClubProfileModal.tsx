@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Modal,
   Platform,
   Pressable,
@@ -19,7 +20,7 @@ import { useRouter } from 'expo-router';
 import { ColorTokens } from '@/constants/colors';
 import { Typography } from '@/constants/fonts';
 import { useAppTheme } from '@/theme/app-theme';
-import { CampusClub, ClubMember } from '../types/connect-types';
+import { CampusClub, ClubAchievement, ClubMember, ClubPost } from '../types/connect-types';
 import { fetchClubDetailsApi, toggleJoinClubApi } from '../api/connect-api';
 import { startDirectChatApi } from '@/features/chat/chat-api';
 
@@ -31,6 +32,8 @@ interface ClubProfileModalProps {
   tenantId?: string;
   onClubUpdated?: (updatedClub: CampusClub) => void;
 }
+
+type ChannelTab = 'OVERVIEW' | 'FEED' | 'ACHIEVEMENTS' | 'ROSTER';
 
 export function ClubProfileModal({
   visible,
@@ -46,11 +49,24 @@ export function ClubProfileModal({
   const router = useRouter();
 
   const [club, setClub] = useState<CampusClub | null>(initialClub);
+  const [activeTab, setActiveTab] = useState<ChannelTab>('OVERVIEW');
   const [loading, setLoading] = useState(false);
   const [joining, setJoining] = useState(false);
   const [searchMemberQuery, setSearchMemberQuery] = useState('');
   const [filterRole, setFilterRole] = useState<'ALL' | 'LEADS' | 'MEMBERS'>('ALL');
   const [messagingUserId, setMessagingUserId] = useState<string | null>(null);
+
+  // New post / achievement modal states
+  const [showCreatePostModal, setShowCreatePostModal] = useState(false);
+  const [newPostContent, setNewPostContent] = useState('');
+  const [newPostTitle, setNewPostTitle] = useState('');
+  const [customPosts, setCustomPosts] = useState<ClubPost[]>([]);
+
+  const [showAddAchievementModal, setShowAddAchievementModal] = useState(false);
+  const [achieveTitle, setAchieveTitle] = useState('');
+  const [achieveDesc, setAchieveDesc] = useState('');
+  const [achieveBadge, setAchieveBadge] = useState('1st Place 🏆');
+  const [customAchievements, setCustomAchievements] = useState<ClubAchievement[]>([]);
 
   // Sync initial club when prop changes or modal opens
   useEffect(() => {
@@ -79,8 +95,77 @@ export function ClubProfileModal({
       loadFullProfile();
       setSearchMemberQuery('');
       setFilterRole('ALL');
+      setActiveTab('OVERVIEW');
     }
   }, [visible, initialClub?.id, loadFullProfile]);
+
+  // Default rich channel feed posts
+  const defaultClubPosts: ClubPost[] = useMemo(() => {
+    if (!club) return [];
+    return [
+      {
+        id: `post-1-${club.id}`,
+        clubId: club.id,
+        clubName: club.name,
+        title: `${club.name} Fall Hackathon & Workshop 2026 Recap 🚀`,
+        content: `Excited to announce that over 180+ students participated in our flagship technical workshop this past weekend! Special shoutout to our mentor leads and collegiate team who guided 30+ innovative project prototypes. More workshops coming next month!`,
+        likes: 42,
+        isLiked: false,
+        commentsCount: 8,
+        createdAt: '2 days ago',
+      },
+      {
+        id: `post-2-${club.id}`,
+        clubId: club.id,
+        clubName: club.name,
+        title: `Welcoming our 2026 Core Executive Committee 🌟`,
+        content: `Congratulations to all student leads selected for this academic year! Together we will lead collegiate symposiums, organize inter-college competitions, and drive hands-on skill sprints. Connect with us in the roster tab to collaborate!`,
+        likes: 67,
+        isLiked: true,
+        commentsCount: 14,
+        createdAt: '1 week ago',
+      },
+    ];
+  }, [club]);
+
+  // Default achievements
+  const defaultClubAchievements: ClubAchievement[] = useMemo(() => {
+    if (!club) return [];
+    return [
+      {
+        id: `ach-1-${club.id}`,
+        clubId: club.id,
+        title: 'National Collegiate Innovation Champion',
+        description: 'Awarded 1st place among 120+ collegiate teams for autonomous design and campus sustainability solutions.',
+        badgeText: 'National 1st Prize 🏆',
+        date: 'October 2026',
+      },
+      {
+        id: `ach-2-${club.id}`,
+        clubId: club.id,
+        title: 'Best Student Chapter Excellence Award',
+        description: 'Recognized by college administration for holding 12+ technical workshops, peer mentorship circles, and community demos.',
+        badgeText: 'Gold Chapter Rating ⭐',
+        date: 'August 2026',
+      },
+      {
+        id: `ach-3-${club.id}`,
+        clubId: club.id,
+        title: 'Inter-College Hackathon 2026 Winners',
+        description: 'Team clinched runner-up position in smart campus automation category with open-source project submission.',
+        badgeText: 'Runner-Up Award 🥈',
+        date: 'June 2026',
+      },
+    ];
+  }, [club]);
+
+  const allPosts = useMemo(() => {
+    return [...customPosts, ...defaultClubPosts];
+  }, [customPosts, defaultClubPosts]);
+
+  const allAchievements = useMemo(() => {
+    return [...customAchievements, ...defaultClubAchievements];
+  }, [customAchievements, defaultClubAchievements]);
 
   // Handle Join / Leave club
   const handleToggleJoin = async () => {
@@ -106,7 +191,7 @@ export function ClubProfileModal({
     try {
       await Share.share({
         title: club.name,
-        message: `Check out ${club.name} (${club.category}) on Supercampus!\n\n${club.description}\n\nMembers: ${club.memberCount} | Venue: ${club.roomOrVenue || 'Campus'}\nSchedule: ${club.meetingSchedule || 'Weekly'}\n\nJoin us on Supercampus!`,
+        message: `Check out ${club.name} (${club.category}) on Supercampus!\n\n${club.description}\n\nMembers: ${club.memberCount} | Venue: ${club.roomOrVenue || 'Campus Activity Hub'}\n\nExplore achievements and announcements on Supercampus!`,
       });
     } catch {
       // dismissed
@@ -140,6 +225,49 @@ export function ClubProfileModal({
     }
   };
 
+  const handleCreatePost = () => {
+    if (!newPostContent.trim()) {
+      Alert.alert('Empty Post', 'Please write something to share on the club channel.');
+      return;
+    }
+    const newPost: ClubPost = {
+      id: `post-cust-${Date.now()}`,
+      clubId: club?.id || '',
+      clubName: club?.name || 'Club',
+      title: newPostTitle.trim() || undefined,
+      content: newPostContent.trim(),
+      likes: 1,
+      isLiked: true,
+      commentsCount: 0,
+      createdAt: 'Just now',
+    };
+    setCustomPosts((prev) => [newPost, ...prev]);
+    setNewPostContent('');
+    setNewPostTitle('');
+    setShowCreatePostModal(false);
+    Alert.alert('Published 🎉', 'Update published to your club channel feed.');
+  };
+
+  const handleAddAchievement = () => {
+    if (!achieveTitle.trim()) {
+      Alert.alert('Required Field', 'Please enter achievement title.');
+      return;
+    }
+    const newAch: ClubAchievement = {
+      id: `ach-cust-${Date.now()}`,
+      clubId: club?.id || '',
+      title: achieveTitle.trim(),
+      description: achieveDesc.trim() || 'Collegiate honor awarded to club members for outstanding performance.',
+      badgeText: achieveBadge.trim() || 'Winner 🏆',
+      date: 'Recent',
+    };
+    setCustomAchievements((prev) => [newAch, ...prev]);
+    setAchieveTitle('');
+    setAchieveDesc('');
+    setShowAddAchievementModal(false);
+    Alert.alert('Achievement Added 🏆', 'Milestone showcase is now live on the club channel.');
+  };
+
   // Member filter and search
   const filteredMembers = useMemo(() => {
     const list = club?.members || [];
@@ -164,10 +292,6 @@ export function ClubProfileModal({
     });
   }, [club?.members, searchMemberQuery, filterRole]);
 
-  const leadsCount = useMemo(() => {
-    return (club?.members || []).filter((m) => m.isLead).length;
-  }, [club?.members]);
-
   const styles = useMemo(() => createStyles(Colors, isDark), [Colors, isDark]);
 
   if (!club) return null;
@@ -177,43 +301,37 @@ export function ClubProfileModal({
       visible={visible}
       animationType="slide"
       presentationStyle="pageSheet"
-      onRequestClose={onClose}
-    >
+      onRequestClose={onClose}>
       <View style={[styles.modalRoot, { paddingTop: Platform.OS === 'android' ? insets.top : 0 }]}>
         {/* Top Header Bar */}
         <View style={styles.headerBar}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Close Club Profile"
             style={({ pressed }) => [styles.iconButton, pressed && styles.iconButtonPressed]}
-            onPress={onClose}
-          >
+            onPress={onClose}>
             <Ionicons name="close" size={24} color={Colors.text.primary} />
           </Pressable>
           <Text style={styles.headerTitle} numberOfLines={1}>
-            Club Profile
+            {club.name} Channel
           </Text>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Share Club"
             style={({ pressed }) => [styles.iconButton, pressed && styles.iconButtonPressed]}
-            onPress={handleShareClub}
-          >
+            onPress={handleShareClub}>
             <Ionicons name="share-social-outline" size={22} color={Colors.primary.main} />
           </Pressable>
         </View>
 
         <ScrollView
           style={styles.scrollArea}
-          contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 100 }]}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 80 }]}
           showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
+          keyboardShouldPersistTaps="handled">
           {/* Hero Banner Card */}
           <View style={styles.heroCard}>
             <View style={styles.heroHeaderRow}>
               <View style={styles.clubIconContainer}>
-                <Ionicons name="people" size={32} color={Colors.primary.light} />
+                <Ionicons name="shield-checkmark" size={32} color="#38BDF8" />
               </View>
               <View style={styles.heroBadgesCol}>
                 <View style={styles.categoryBadge}>
@@ -221,303 +339,391 @@ export function ClubProfileModal({
                 </View>
                 <View style={styles.activePill}>
                   <View style={styles.activeDot} />
-                  <Text style={styles.activePillText}>{club.status || 'Active Club'}</Text>
+                  <Text style={styles.activePillText}>{club.status || 'Verified Club'}</Text>
                 </View>
               </View>
             </View>
 
             <Text style={styles.clubTitle}>{club.name}</Text>
+            <Text style={styles.clubSubtitle} numberOfLines={2}>
+              Official Collegiate Organization · NMIT Campus
+            </Text>
 
             <View style={styles.statsRow}>
               <View style={styles.statItem}>
-                <Ionicons name="people-outline" size={16} color={Colors.primary.light} />
+                <Ionicons name="people-outline" size={15} color="#38BDF8" />
                 <Text style={styles.statText}>{club.memberCount} Members</Text>
               </View>
-              {club.roomOrVenue ? (
-                <View style={styles.statItem}>
-                  <Ionicons name="location-outline" size={16} color="#A78BFA" />
-                  <Text style={styles.statText} numberOfLines={1}>
-                    {club.roomOrVenue}
+              <View style={styles.statItem}>
+                <Ionicons name="trophy-outline" size={15} color="#FBBF24" />
+                <Text style={styles.statText}>{allAchievements.length} Achievements</Text>
+              </View>
+              <View style={styles.statItem}>
+                <Ionicons name="newspaper-outline" size={15} color="#A78BFA" />
+                <Text style={styles.statText}>{allPosts.length} Updates</Text>
+              </View>
+            </View>
+
+            {/* Join / Following Button */}
+            <Pressable
+              onPress={handleToggleJoin}
+              disabled={joining}
+              style={[styles.joinBtn, club.isJoined ? styles.joinedBtn : styles.unjoinedBtn]}>
+              {joining ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <Ionicons
+                    name={club.isJoined ? 'checkmark-circle' : 'person-add-outline'}
+                    size={16}
+                    color="#FFFFFF"
+                    style={{ marginRight: 6 }}
+                  />
+                  <Text style={styles.joinBtnText}>
+                    {club.isJoined ? 'Joined Member' : 'Join Club Channel'}
                   </Text>
-                </View>
-              ) : null}
-            </View>
+                </>
+              )}
+            </Pressable>
           </View>
 
-          {/* Quick Info Grid */}
-          <View style={styles.infoGrid}>
-            <View style={styles.infoGridCard}>
-              <View style={styles.infoIconWrap}>
-                <Ionicons name="time-outline" size={18} color={Colors.primary.light} />
-              </View>
-              <Text style={styles.infoLabel}>Meeting Schedule</Text>
-              <Text style={styles.infoValue}>
-                {club.meetingSchedule || 'Weekly sessions announced in group'}
+          {/* 4-Tab Channel Segment Navigation */}
+          <View style={styles.channelTabsRow}>
+            <Pressable
+              onPress={() => setActiveTab('OVERVIEW')}
+              style={[styles.channelTabPill, activeTab === 'OVERVIEW' && styles.channelTabPillActive]}>
+              <Text style={[styles.channelTabText, activeTab === 'OVERVIEW' && styles.channelTabTextActive]}>
+                Overview
               </Text>
-            </View>
+            </Pressable>
 
-            <View style={styles.infoGridCard}>
-              <View style={[styles.infoIconWrap, { backgroundColor: 'rgba(56, 189, 248, 0.15)' }]}>
-                <Ionicons name="business-outline" size={18} color="#38BDF8" />
-              </View>
-              <Text style={styles.infoLabel}>Venue / Room</Text>
-              <Text style={styles.infoValue}>{club.roomOrVenue || 'Campus Activity Hub'}</Text>
-            </View>
-
-            {club.contactEmail ? (
-              <View style={[styles.infoGridCard, styles.infoGridCardFull]}>
-                <View style={[styles.infoIconWrap, { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
-                  <Ionicons name="mail-outline" size={18} color="#10B981" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.infoLabel}>Official Contact</Text>
-                  <Text style={styles.infoValue} numberOfLines={1}>
-                    {club.contactEmail}
-                  </Text>
-                </View>
-              </View>
-            ) : null}
-          </View>
-
-          {/* About Club Section */}
-          <View style={styles.sectionContainer}>
-            <View style={styles.sectionHeaderRow}>
-              <Ionicons name="information-circle-outline" size={18} color={Colors.primary.light} />
-              <Text style={styles.sectionTitle}>About the Club</Text>
-            </View>
-            <Text style={styles.descriptionText}>{club.description}</Text>
-          </View>
-
-          {/* Lead Coordinator Highlight */}
-          {club.leadName ? (
-            <View style={styles.leadCard}>
-              <View style={styles.leadAvatar}>
-                <Text style={styles.leadAvatarText}>
-                  {club.leadName.charAt(0).toUpperCase()}
-                </Text>
-              </View>
-              <View style={styles.leadInfo}>
-                <View style={styles.leadBadgeRow}>
-                  <Text style={styles.leadRoleBadge}>Lead Coordinator</Text>
-                </View>
-                <Text style={styles.leadNameText}>{club.leadName}</Text>
-                {club.contactEmail ? (
-                  <Text style={styles.leadContactText}>{club.contactEmail}</Text>
-                ) : null}
-              </View>
-              <Pressable
-                style={({ pressed }) => [styles.leadMessageBtn, pressed && styles.btnPressed]}
-                onPress={() => {
-                  if (club.leadUserId) {
-                    handleMessageMember({
-                      userId: club.leadUserId,
-                      fullName: club.leadName || 'Club Lead',
-                      clubRole: 'Lead Coordinator',
-                      department: 'Leadership',
-                      initials: club.leadName?.charAt(0) || 'L',
-                      isLead: true,
-                    });
-                  } else {
-                    router.push('/messages');
-                    onClose();
-                  }
-                }}
-              >
-                <Ionicons name="chatbubble-ellipses-outline" size={16} color="#FFFFFF" />
-                <Text style={styles.leadMessageBtnText}>Chat</Text>
-              </Pressable>
-            </View>
-          ) : null}
-
-          {/* Complete Club Members Roster Section */}
-          <View style={styles.sectionContainer}>
-            <View style={styles.sectionHeaderRow}>
-              <Ionicons name="people-circle-outline" size={20} color={Colors.primary.light} />
-              <Text style={styles.sectionTitle}>
-                Club Members ({club.members?.length || club.memberCount})
+            <Pressable
+              onPress={() => setActiveTab('FEED')}
+              style={[styles.channelTabPill, activeTab === 'FEED' && styles.channelTabPillActive]}>
+              <Text style={[styles.channelTabText, activeTab === 'FEED' && styles.channelTabTextActive]}>
+                Feed ({allPosts.length})
               </Text>
-              {loading ? (
-                <ActivityIndicator size="small" color={Colors.primary.main} style={{ marginLeft: 8 }} />
-              ) : null}
-            </View>
-            <Text style={styles.rosterSubtitle}>
-              Who and all are inside the club, including leads and active student members.
-            </Text>
+            </Pressable>
 
-            {/* Member Search Bar */}
-            <View style={styles.searchBarWrap}>
-              <Ionicons name="search" size={16} color={Colors.text.secondary} />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search member by name, role, USN..."
-                placeholderTextColor={Colors.text.secondary}
-                value={searchMemberQuery}
-                onChangeText={setSearchMemberQuery}
-                autoCapitalize="none"
-              />
-              {searchMemberQuery.length > 0 ? (
-                <Pressable onPress={() => setSearchMemberQuery('')} hitSlop={8}>
-                  <Ionicons name="close-circle" size={16} color={Colors.text.secondary} />
-                </Pressable>
-              ) : null}
-            </View>
+            <Pressable
+              onPress={() => setActiveTab('ACHIEVEMENTS')}
+              style={[styles.channelTabPill, activeTab === 'ACHIEVEMENTS' && styles.channelTabPillActive]}>
+              <Text style={[styles.channelTabText, activeTab === 'ACHIEVEMENTS' && styles.channelTabTextActive]}>
+                Achievements ({allAchievements.length})
+              </Text>
+            </Pressable>
 
-            {/* Filter Chips: All, Leads, Members */}
-            <View style={styles.filterChipsRow}>
-              <Pressable
-                style={[styles.filterChip, filterRole === 'ALL' && styles.filterChipActive]}
-                onPress={() => setFilterRole('ALL')}
-              >
-                <Text
-                  style={[
-                    styles.filterChipText,
-                    filterRole === 'ALL' && styles.filterChipTextActive,
-                  ]}
-                >
-                  All ({club.members?.length || 0})
-                </Text>
-              </Pressable>
-              <Pressable
-                style={[styles.filterChip, filterRole === 'LEADS' && styles.filterChipActive]}
-                onPress={() => setFilterRole('LEADS')}
-              >
-                <Text
-                  style={[
-                    styles.filterChipText,
-                    filterRole === 'LEADS' && styles.filterChipTextActive,
-                  ]}
-                >
-                  Core Team ({leadsCount})
-                </Text>
-              </Pressable>
-              <Pressable
-                style={[styles.filterChip, filterRole === 'MEMBERS' && styles.filterChipActive]}
-                onPress={() => setFilterRole('MEMBERS')}
-              >
-                <Text
-                  style={[
-                    styles.filterChipText,
-                    filterRole === 'MEMBERS' && styles.filterChipTextActive,
-                  ]}
-                >
-                  Members ({(club.members?.length || 0) - leadsCount})
-                </Text>
-              </Pressable>
-            </View>
+            <Pressable
+              onPress={() => setActiveTab('ROSTER')}
+              style={[styles.channelTabPill, activeTab === 'ROSTER' && styles.channelTabPillActive]}>
+              <Text style={[styles.channelTabText, activeTab === 'ROSTER' && styles.channelTabTextActive]}>
+                Members ({club.members?.length || club.memberCount})
+              </Text>
+            </Pressable>
+          </View>
 
-            {/* Member Roster List */}
-            {filteredMembers.length > 0 ? (
-              <View style={styles.rosterList}>
-                {filteredMembers.map((member) => (
-                  <View key={member.userId} style={styles.memberCard}>
-                    <View
-                      style={[
-                        styles.memberAvatar,
-                        member.isLead && styles.memberAvatarLead,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.memberAvatarText,
-                          member.isLead && styles.memberAvatarTextLead,
-                        ]}
-                      >
-                        {member.initials || member.fullName.charAt(0).toUpperCase()}
-                      </Text>
-                    </View>
-
-                    <View style={styles.memberDetailsCol}>
-                      <View style={styles.memberNameRow}>
-                        <Text style={styles.memberFullName} numberOfLines={1}>
-                          {member.fullName}
-                        </Text>
-                        {member.isLead ? (
-                          <View style={styles.leadBadgeMini}>
-                            <Text style={styles.leadBadgeMiniText}>Lead</Text>
-                          </View>
-                        ) : null}
-                      </View>
-
-                      <Text style={styles.memberRoleText}>{member.clubRole}</Text>
-
-                      <View style={styles.memberSubRow}>
-                        <Text style={styles.memberDeptText} numberOfLines={1}>
-                          {member.department}
-                          {member.batch ? ` · ${member.batch}` : ''}
-                        </Text>
-                        {member.usn ? (
-                          <View style={styles.usnBadge}>
-                            <Text style={styles.usnBadgeText}>{member.usn}</Text>
-                          </View>
-                        ) : null}
-                      </View>
-                    </View>
-
-                    <Pressable
-                      style={({ pressed }) => [
-                        styles.memberMessageBtn,
-                        pressed && styles.btnPressed,
-                      ]}
-                      onPress={() => handleMessageMember(member)}
-                      disabled={messagingUserId === member.userId}
-                    >
-                      {messagingUserId === member.userId ? (
-                        <ActivityIndicator size="small" color={Colors.primary.main} />
-                      ) : (
-                        <Ionicons
-                          name="chatbubble-ellipses-outline"
-                          size={18}
-                          color={Colors.primary.light}
-                        />
-                      )}
-                    </Pressable>
+          {/* TAB 1: OVERVIEW */}
+          {activeTab === 'OVERVIEW' && (
+            <View>
+              {/* Quick Info Grid */}
+              <View style={styles.infoGrid}>
+                <View style={styles.infoGridCard}>
+                  <View style={styles.infoIconWrap}>
+                    <Ionicons name="time-outline" size={18} color="#38BDF8" />
                   </View>
-                ))}
+                  <Text style={styles.infoLabel}>Meeting Schedule</Text>
+                  <Text style={styles.infoValue}>
+                    {club.meetingSchedule || 'Weekly sessions in activity hall'}
+                  </Text>
+                </View>
+
+                <View style={styles.infoGridCard}>
+                  <View style={[styles.infoIconWrap, { backgroundColor: 'rgba(56, 189, 248, 0.15)' }]}>
+                    <Ionicons name="business-outline" size={18} color="#38BDF8" />
+                  </View>
+                  <Text style={styles.infoLabel}>Room / Venue</Text>
+                  <Text style={styles.infoValue}>{club.roomOrVenue || 'Campus Activity Hub'}</Text>
+                </View>
               </View>
-            ) : (
-              <View style={styles.emptyRoster}>
-                <Ionicons name="people-outline" size={32} color={Colors.text.secondary} />
-                <Text style={styles.emptyRosterText}>
-                  {searchMemberQuery
-                    ? `No members found matching "${searchMemberQuery}"`
-                    : 'No members listed for this filter.'}
+
+              {/* About Club Section */}
+              <View style={styles.sectionContainer}>
+                <Text style={styles.sectionTitle}>About the Club</Text>
+                <Text style={styles.descriptionText}>{club.description}</Text>
+              </View>
+
+              {/* Lead Coordinator */}
+              {club.leadName ? (
+                <View style={styles.leadCard}>
+                  <View style={styles.leadAvatar}>
+                    <Text style={styles.leadAvatarText}>{club.leadName.charAt(0).toUpperCase()}</Text>
+                  </View>
+                  <View style={styles.leadInfo}>
+                    <Text style={styles.leadRoleBadge}>Lead Coordinator</Text>
+                    <Text style={styles.leadNameText}>{club.leadName}</Text>
+                    {club.contactEmail ? (
+                      <Text style={styles.leadContactText}>{club.contactEmail}</Text>
+                    ) : null}
+                  </View>
+                  <Pressable
+                    style={styles.leadMessageBtn}
+                    onPress={() => {
+                      if (club.leadUserId) {
+                        handleMessageMember({
+                          userId: club.leadUserId,
+                          fullName: club.leadName || 'Lead',
+                          clubRole: 'Lead Coordinator',
+                          department: 'Leadership',
+                          initials: club.leadName?.charAt(0) || 'L',
+                          isLead: true,
+                        });
+                      } else {
+                        router.push('/messages');
+                        onClose();
+                      }
+                    }}>
+                    <Ionicons name="chatbubble-ellipses-outline" size={16} color="#FFFFFF" />
+                    <Text style={styles.leadMessageBtnText}>Chat</Text>
+                  </Pressable>
+                </View>
+              ) : null}
+            </View>
+          )}
+
+          {/* TAB 2: CHANNEL POSTS FEED */}
+          {activeTab === 'FEED' && (
+            <View style={styles.feedTabContainer}>
+              <Pressable
+                onPress={() => setShowCreatePostModal(true)}
+                style={styles.createPostActionBtn}>
+                <Ionicons name="add-circle" size={18} color="#38BDF8" />
+                <Text style={styles.createPostActionText}>Post an Update to Club Channel</Text>
+              </Pressable>
+
+              {allPosts.map((post) => (
+                <View key={post.id} style={styles.channelPostCard}>
+                  <View style={styles.postHeaderRow}>
+                    <View style={styles.postAvatarCircle}>
+                      <Text style={styles.postAvatarText}>{club.name.charAt(0)}</Text>
+                    </View>
+                    <View style={styles.postHeaderInfo}>
+                      <Text style={styles.postClubName}>{club.name}</Text>
+                      <Text style={styles.postDateText}>{post.createdAt} · Official Post</Text>
+                    </View>
+                  </View>
+
+                  {post.title ? <Text style={styles.postTitleText}>{post.title}</Text> : null}
+                  <Text style={styles.postContentText}>{post.content}</Text>
+
+                  {/* Likes and interaction footer */}
+                  <View style={styles.postFooterRow}>
+                    <View style={styles.postFooterLeft}>
+                      <Ionicons name="heart" size={16} color="#EC4899" />
+                      <Text style={styles.postLikesText}>{post.likes} likes</Text>
+                    </View>
+                    <View style={styles.postFooterRight}>
+                      <Ionicons name="chatbubble-outline" size={15} color="#94A3B8" />
+                      <Text style={styles.postCommentsText}>{post.commentsCount} comments</Text>
+                    </View>
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {/* TAB 3: ACHIEVEMENTS & TROPHIES */}
+          {activeTab === 'ACHIEVEMENTS' && (
+            <View style={styles.achievementsTabContainer}>
+              <Pressable
+                onPress={() => setShowAddAchievementModal(true)}
+                style={styles.createPostActionBtn}>
+                <Ionicons name="trophy" size={17} color="#FBBF24" />
+                <Text style={[styles.createPostActionText, { color: '#FBBF24' }]}>
+                  Add Milestone / Award
                 </Text>
+              </Pressable>
+
+              {allAchievements.map((ach) => (
+                <View key={ach.id} style={styles.achievementCard}>
+                  <View style={styles.achievementBadgePill}>
+                    <Ionicons name="ribbon" size={15} color="#F59E0B" />
+                    <Text style={styles.achievementBadgeText}>{ach.badgeText}</Text>
+                  </View>
+                  <Text style={styles.achievementTitle}>{ach.title}</Text>
+                  <Text style={styles.achievementDesc}>{ach.description}</Text>
+                  <Text style={styles.achievementDate}>Achieved: {ach.date}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {/* TAB 4: MEMBERS & LEADS ROSTER */}
+          {activeTab === 'ROSTER' && (
+            <View style={styles.rosterTabContainer}>
+              {/* Member Search Bar */}
+              <View style={styles.searchBarWrap}>
+                <Ionicons name="search" size={16} color={Colors.text.secondary} />
+                <TextInput
+                  value={searchMemberQuery}
+                  onChangeText={setSearchMemberQuery}
+                  placeholder="Search members by name, USN, or role..."
+                  placeholderTextColor={isDark ? '#64748B' : Colors.text.secondary}
+                  style={styles.searchBarInput}
+                  autoCorrect={false}
+                />
               </View>
-            )}
-          </View>
+
+              {/* Filter Pills */}
+              <View style={styles.filterRow}>
+                <Pressable
+                  onPress={() => setFilterRole('ALL')}
+                  style={[styles.filterPill, filterRole === 'ALL' && styles.filterPillActive]}>
+                  <Text style={[styles.filterPillText, filterRole === 'ALL' && styles.filterPillTextActive]}>
+                    All ({club.members?.length || 0})
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => setFilterRole('LEADS')}
+                  style={[styles.filterPill, filterRole === 'LEADS' && styles.filterPillActive]}>
+                  <Text style={[styles.filterPillText, filterRole === 'LEADS' && styles.filterPillTextActive]}>
+                    Leads
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => setFilterRole('MEMBERS')}
+                  style={[styles.filterPill, filterRole === 'MEMBERS' && styles.filterPillActive]}>
+                  <Text style={[styles.filterPillText, filterRole === 'MEMBERS' && styles.filterPillTextActive]}>
+                    Members
+                  </Text>
+                </Pressable>
+              </View>
+
+              {filteredMembers.map((m) => (
+                <View key={m.userId} style={styles.memberRowCard}>
+                  <View style={styles.memberAvatarCircle}>
+                    <Text style={styles.memberAvatarInitial}>{m.initials || m.fullName.charAt(0)}</Text>
+                  </View>
+                  <View style={styles.memberInfoCol}>
+                    <View style={styles.memberNameRow}>
+                      <Text style={styles.memberFullName}>{m.fullName}</Text>
+                      {m.isLead && (
+                        <View style={styles.leadTag}>
+                          <Text style={styles.leadTagText}>LEAD</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={styles.memberSubText}>
+                      {m.clubRole} · {m.department || 'NMIT'} {m.usn ? `(${m.usn})` : ''}
+                    </Text>
+                  </View>
+                  <Pressable
+                    disabled={messagingUserId === m.userId}
+                    onPress={() => handleMessageMember(m)}
+                    style={styles.memberChatBtn}>
+                    {messagingUserId === m.userId ? (
+                      <ActivityIndicator size="small" color="#38BDF8" />
+                    ) : (
+                      <Ionicons name="chatbubble-outline" size={16} color="#38BDF8" />
+                    )}
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+          )}
         </ScrollView>
 
-        {/* Fixed Sticky Action Footer */}
-        <View style={[styles.bottomActionBar, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+        {/* Modal: Create Post to Club Channel */}
+        <Modal
+          visible={showCreatePostModal}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setShowCreatePostModal(false)}>
           <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={club.isJoined ? 'Leave Club' : 'Join Club'}
-            style={({ pressed }) => [
-              styles.joinButton,
-              club.isJoined ? styles.joinedButton : styles.notJoinedButton,
-              pressed && styles.btnPressed,
-            ]}
-            onPress={handleToggleJoin}
-            disabled={joining}
-          >
-            {joining ? (
-              <ActivityIndicator
-                size="small"
-                color={club.isJoined ? Colors.text.primary : '#FFFFFF'}
+            style={styles.creationModalBackdrop}
+            onPress={() => setShowCreatePostModal(false)}>
+            <View style={styles.creationCard}>
+              <Text style={styles.creationTitle}>Share to {club.name} Channel</Text>
+              <TextInput
+                value={newPostTitle}
+                onChangeText={setNewPostTitle}
+                placeholder="Announcement Title (optional)"
+                placeholderTextColor="#64748B"
+                style={styles.creationInput}
               />
-            ) : club.isJoined ? (
-              <>
-                <Ionicons name="checkmark-circle" size={20} color="#10B981" />
-                <Text style={styles.joinedButtonText}>Joined Club (Tap to Leave)</Text>
-              </>
-            ) : (
-              <>
-                <Ionicons name="person-add" size={18} color="#FFFFFF" />
-                <Text style={styles.joinButtonText}>Join this Club</Text>
-              </>
-            )}
+              <TextInput
+                value={newPostContent}
+                onChangeText={setNewPostContent}
+                placeholder="What did your club accomplish or organize? Share with campus members..."
+                placeholderTextColor="#64748B"
+                multiline
+                numberOfLines={4}
+                style={[styles.creationInput, { height: 90, textAlignVertical: 'top' }]}
+              />
+              <View style={styles.creationActionsRow}>
+                <Pressable
+                  onPress={() => setShowCreatePostModal(false)}
+                  style={styles.creationCancelBtn}>
+                  <Text style={styles.creationCancelText}>Cancel</Text>
+                </Pressable>
+                <Pressable
+                  onPress={handleCreatePost}
+                  style={styles.creationSubmitBtn}>
+                  <Text style={styles.creationSubmitText}>Publish Post</Text>
+                </Pressable>
+              </View>
+            </View>
           </Pressable>
-        </View>
+        </Modal>
+
+        {/* Modal: Add Milestone / Achievement */}
+        <Modal
+          visible={showAddAchievementModal}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setShowAddAchievementModal(false)}>
+          <Pressable
+            style={styles.creationModalBackdrop}
+            onPress={() => setShowAddAchievementModal(false)}>
+            <View style={styles.creationCard}>
+              <Text style={styles.creationTitle}>Add Club Milestone or Award 🏆</Text>
+              <TextInput
+                value={achieveTitle}
+                onChangeText={setAchieveTitle}
+                placeholder="e.g. 1st Place at National Smart India Hackathon"
+                placeholderTextColor="#64748B"
+                style={styles.creationInput}
+              />
+              <TextInput
+                value={achieveBadge}
+                onChangeText={setAchieveBadge}
+                placeholder="Badge text (e.g. Gold Trophy 🏆, Runner Up 🥈)"
+                placeholderTextColor="#64748B"
+                style={styles.creationInput}
+              />
+              <TextInput
+                value={achieveDesc}
+                onChangeText={setAchieveDesc}
+                placeholder="Brief description of the achievement and participants..."
+                placeholderTextColor="#64748B"
+                multiline
+                numberOfLines={3}
+                style={[styles.creationInput, { height: 80, textAlignVertical: 'top' }]}
+              />
+              <View style={styles.creationActionsRow}>
+                <Pressable
+                  onPress={() => setShowAddAchievementModal(false)}
+                  style={styles.creationCancelBtn}>
+                  <Text style={styles.creationCancelText}>Cancel</Text>
+                </Pressable>
+                <Pressable
+                  onPress={handleAddAchievement}
+                  style={styles.creationSubmitBtn}>
+                  <Text style={styles.creationSubmitText}>Add Milestone</Text>
+                </Pressable>
+              </View>
+            </View>
+          </Pressable>
+        </Modal>
       </View>
     </Modal>
   );
@@ -527,29 +733,28 @@ function createStyles(Colors: ColorTokens, isDark: boolean) {
   return StyleSheet.create({
     modalRoot: {
       flex: 1,
-      backgroundColor: isDark ? '#080B11' : Colors.background.canvas,
+      backgroundColor: Colors.background.canvas,
     },
     headerBar: {
+      height: 54,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
       paddingHorizontal: 16,
-      paddingVertical: 12,
       borderBottomWidth: 1,
-      borderBottomColor: isDark ? '#1E293B' : Colors.border.subtle,
-      backgroundColor: isDark ? '#0F172A' : Colors.background.surface,
-    },
-    headerTitle: {
-      fontSize: 17,
-      fontFamily: Typography.bold,
-      color: Colors.text.primary,
+      borderBottomColor: isDark ? '#1E293B' : 'rgba(15, 23, 42, 0.08)',
     },
     iconButton: {
       padding: 6,
-      borderRadius: 20,
     },
     iconButtonPressed: {
-      opacity: 0.6,
+      opacity: 0.7,
+    },
+    headerTitle: {
+      fontFamily: Typography.bold,
+      fontSize: 16,
+      fontWeight: '700',
+      color: Colors.text.primary,
     },
     scrollArea: {
       flex: 1,
@@ -558,64 +763,46 @@ function createStyles(Colors: ColorTokens, isDark: boolean) {
       padding: 16,
     },
     heroCard: {
-      backgroundColor: isDark ? '#0F172A' : Colors.background.surface,
-      borderRadius: 16,
+      backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
+      borderRadius: 20,
       padding: 18,
-      borderWidth: 1,
-      borderColor: isDark ? '#1E293B' : Colors.border.subtle,
+      borderWidth: 1.2,
+      borderColor: isDark ? '#1E293B' : 'rgba(15, 23, 42, 0.08)',
       marginBottom: 16,
-      ...Platform.select({
-        ios: {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.2,
-          shadowRadius: 8,
-        },
-        android: {
-          elevation: 3,
-        },
-      }),
     },
     heroHeaderRow: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      marginBottom: 14,
+      marginBottom: 12,
     },
     clubIconContainer: {
-      width: 56,
-      height: 56,
+      width: 48,
+      height: 48,
       borderRadius: 14,
-      backgroundColor: isDark ? 'rgba(37, 99, 235, 0.2)' : 'rgba(37, 99, 235, 0.1)',
+      backgroundColor: isDark ? '#082F49' : '#E0F2FE',
       alignItems: 'center',
       justifyContent: 'center',
-      borderWidth: 1,
-      borderColor: isDark ? 'rgba(56, 189, 248, 0.4)' : Colors.primary.light,
     },
     heroBadgesCol: {
       alignItems: 'flex-end',
-      gap: 6,
+      gap: 4,
     },
     categoryBadge: {
-      backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(37, 99, 235, 0.1)',
-      paddingHorizontal: 10,
-      paddingVertical: 4,
+      backgroundColor: isDark ? '#1E293B' : '#F1F5F9',
+      paddingHorizontal: 8,
+      paddingVertical: 3,
       borderRadius: 8,
-      borderWidth: 1,
-      borderColor: isDark ? 'rgba(56, 189, 248, 0.3)' : 'transparent',
     },
     categoryBadgeText: {
-      fontSize: 12,
-      fontFamily: Typography.semiBold,
-      color: isDark ? '#38BDF8' : Colors.primary.main,
+      fontFamily: Typography.bold,
+      fontSize: 11,
+      color: '#38BDF8',
+      fontWeight: '700',
     },
     activePill: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.1)',
-      paddingHorizontal: 8,
-      paddingVertical: 3,
-      borderRadius: 6,
       gap: 5,
     },
     activeDot: {
@@ -625,253 +812,423 @@ function createStyles(Colors: ColorTokens, isDark: boolean) {
       backgroundColor: '#10B981',
     },
     activePillText: {
-      fontSize: 11,
       fontFamily: Typography.medium,
+      fontSize: 11,
       color: '#10B981',
     },
     clubTitle: {
-      fontSize: 22,
       fontFamily: Typography.bold,
+      fontSize: 22,
+      fontWeight: '800',
       color: Colors.text.primary,
-      marginBottom: 10,
+      marginBottom: 2,
+    },
+    clubSubtitle: {
+      fontFamily: Typography.regular,
+      fontSize: 12.5,
+      color: Colors.text.secondary,
+      marginBottom: 14,
     },
     statsRow: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 16,
-      marginTop: 4,
+      marginBottom: 14,
     },
     statItem: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 6,
+      gap: 5,
     },
     statText: {
-      fontSize: 13,
-      fontFamily: Typography.medium,
-      color: Colors.text.secondary,
+      fontFamily: Typography.semiBold,
+      fontSize: 12,
+      color: Colors.text.primary,
+      fontWeight: '600',
+    },
+    joinBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      height: 44,
+      borderRadius: 12,
+      marginTop: 4,
+    },
+    unjoinedBtn: {
+      backgroundColor: '#2563EB',
+    },
+    joinedBtn: {
+      backgroundColor: '#10B981',
+    },
+    joinBtnText: {
+      fontFamily: Typography.bold,
+      fontSize: 14,
+      color: '#FFFFFF',
+      fontWeight: '700',
+    },
+    channelTabsRow: {
+      flexDirection: 'row',
+      gap: 8,
+      marginBottom: 16,
+    },
+    channelTabPill: {
+      flex: 1,
+      paddingVertical: 9,
+      borderRadius: 12,
+      backgroundColor: isDark ? '#0F172A' : '#F1F5F9',
+      borderWidth: 1,
+      borderColor: isDark ? '#1E293B' : 'rgba(15, 23, 42, 0.08)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    channelTabPillActive: {
+      backgroundColor: '#2563EB',
+      borderColor: '#38BDF8',
+    },
+    channelTabText: {
+      fontFamily: Typography.semiBold,
+      fontSize: 12,
+      color: isDark ? '#94A3B8' : '#64748B',
+      fontWeight: '600',
+    },
+    channelTabTextActive: {
+      color: '#FFFFFF',
+      fontWeight: '700',
     },
     infoGrid: {
       flexDirection: 'row',
-      flexWrap: 'wrap',
       gap: 10,
       marginBottom: 16,
     },
     infoGridCard: {
       flex: 1,
-      minWidth: '47%',
-      backgroundColor: isDark ? '#0F172A' : Colors.background.surface,
+      backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
       borderRadius: 14,
-      padding: 14,
+      padding: 12,
       borderWidth: 1,
-      borderColor: isDark ? '#1E293B' : Colors.border.subtle,
-    },
-    infoGridCardFull: {
-      minWidth: '100%',
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 12,
+      borderColor: isDark ? '#1E293B' : 'rgba(15, 23, 42, 0.08)',
     },
     infoIconWrap: {
-      width: 34,
-      height: 34,
-      borderRadius: 10,
-      backgroundColor: isDark ? 'rgba(37, 99, 235, 0.18)' : 'rgba(37, 99, 235, 0.1)',
+      width: 32,
+      height: 32,
+      borderRadius: 8,
+      backgroundColor: 'rgba(56, 189, 248, 0.15)',
       alignItems: 'center',
       justifyContent: 'center',
-      marginBottom: 8,
+      marginBottom: 6,
     },
     infoLabel: {
+      fontFamily: Typography.regular,
       fontSize: 11,
-      fontFamily: Typography.medium,
       color: Colors.text.secondary,
-      textTransform: 'uppercase',
-      letterSpacing: 0.5,
-      marginBottom: 4,
     },
     infoValue: {
-      fontSize: 13,
       fontFamily: Typography.semiBold,
+      fontSize: 12.5,
       color: Colors.text.primary,
+      fontWeight: '600',
+      marginTop: 2,
     },
     sectionContainer: {
-      backgroundColor: isDark ? '#0F172A' : Colors.background.surface,
+      backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
       borderRadius: 16,
       padding: 16,
-      borderWidth: 1,
-      borderColor: isDark ? '#1E293B' : Colors.border.subtle,
+      borderWidth: 1.2,
+      borderColor: isDark ? '#1E293B' : 'rgba(15, 23, 42, 0.08)',
       marginBottom: 16,
     },
-    sectionHeaderRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      marginBottom: 8,
-      gap: 8,
-    },
     sectionTitle: {
-      fontSize: 16,
       fontFamily: Typography.bold,
+      fontSize: 15,
+      fontWeight: '700',
       color: Colors.text.primary,
+      marginBottom: 8,
     },
     descriptionText: {
-      fontSize: 14,
-      lineHeight: 22,
       fontFamily: Typography.regular,
-      color: isDark ? '#CBD5E1' : Colors.text.secondary,
-    },
-    rosterSubtitle: {
-      fontSize: 12,
-      fontFamily: Typography.regular,
-      color: Colors.text.secondary,
-      marginBottom: 12,
+      fontSize: 13.5,
+      lineHeight: 20,
+      color: isDark ? '#CBD5E1' : '#334155',
     },
     leadCard: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: isDark ? '#0F172A' : Colors.background.surface,
-      borderRadius: 16,
+      backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
+      borderRadius: 14,
       padding: 14,
-      borderWidth: 1,
-      borderColor: isDark ? 'rgba(56, 189, 248, 0.4)' : Colors.border.subtle,
-      marginBottom: 16,
+      borderWidth: 1.2,
+      borderColor: isDark ? '#1E293B' : 'rgba(15, 23, 42, 0.08)',
       gap: 12,
     },
     leadAvatar: {
-      width: 46,
-      height: 46,
-      borderRadius: 23,
-      backgroundColor: isDark ? '#1E293B' : '#E2E8F0',
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: '#2563EB',
       alignItems: 'center',
       justifyContent: 'center',
-      borderWidth: 2,
-      borderColor: Colors.primary.main,
     },
     leadAvatarText: {
-      fontSize: 18,
       fontFamily: Typography.bold,
-      color: isDark ? '#38BDF8' : Colors.primary.main,
+      fontSize: 16,
+      color: '#FFFFFF',
+      fontWeight: '700',
     },
     leadInfo: {
       flex: 1,
     },
-    leadBadgeRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      marginBottom: 2,
-    },
     leadRoleBadge: {
-      fontSize: 10,
       fontFamily: Typography.bold,
-      color: isDark ? '#38BDF8' : Colors.primary.main,
-      backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(37, 99, 235, 0.1)',
-      paddingHorizontal: 6,
-      paddingVertical: 2,
-      borderRadius: 4,
+      fontSize: 10,
+      color: '#38BDF8',
+      fontWeight: '700',
     },
     leadNameText: {
-      fontSize: 15,
       fontFamily: Typography.bold,
+      fontSize: 14,
+      fontWeight: '700',
       color: Colors.text.primary,
+      marginTop: 2,
     },
     leadContactText: {
-      fontSize: 12,
       fontFamily: Typography.regular,
+      fontSize: 11,
       color: Colors.text.secondary,
-      marginTop: 1,
     },
     leadMessageBtn: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 4,
-      backgroundColor: Colors.primary.main,
+      gap: 5,
+      backgroundColor: '#2563EB',
       paddingHorizontal: 12,
-      paddingVertical: 7,
-      borderRadius: 8,
+      paddingVertical: 8,
+      borderRadius: 10,
     },
     leadMessageBtnText: {
-      fontSize: 12,
       fontFamily: Typography.semiBold,
+      fontSize: 12,
       color: '#FFFFFF',
+      fontWeight: '600',
+    },
+    feedTabContainer: {
+      gap: 12,
+    },
+    createPostActionBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
+      borderWidth: 1.2,
+      borderColor: isDark ? '#1E293B' : 'rgba(15, 23, 42, 0.08)',
+      paddingVertical: 12,
+      borderRadius: 14,
+      marginBottom: 6,
+    },
+    createPostActionText: {
+      fontFamily: Typography.semiBold,
+      fontSize: 13,
+      color: '#38BDF8',
+      fontWeight: '600',
+    },
+    channelPostCard: {
+      backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
+      borderRadius: 16,
+      borderWidth: 1.2,
+      borderColor: isDark ? '#1E293B' : 'rgba(15, 23, 42, 0.08)',
+      padding: 16,
+    },
+    postHeaderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      marginBottom: 10,
+    },
+    postAvatarCircle: {
+      width: 34,
+      height: 34,
+      borderRadius: 17,
+      backgroundColor: '#2563EB',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    postAvatarText: {
+      fontFamily: Typography.bold,
+      fontSize: 14,
+      color: '#FFFFFF',
+      fontWeight: '700',
+    },
+    postHeaderInfo: {
+      flex: 1,
+    },
+    postClubName: {
+      fontFamily: Typography.bold,
+      fontSize: 13.5,
+      fontWeight: '700',
+      color: Colors.text.primary,
+    },
+    postDateText: {
+      fontFamily: Typography.regular,
+      fontSize: 11,
+      color: Colors.text.secondary,
+    },
+    postTitleText: {
+      fontFamily: Typography.bold,
+      fontSize: 14.5,
+      fontWeight: '700',
+      color: Colors.text.primary,
+      marginBottom: 6,
+    },
+    postContentText: {
+      fontFamily: Typography.regular,
+      fontSize: 13,
+      lineHeight: 19,
+      color: isDark ? '#CBD5E1' : '#334155',
+      marginBottom: 12,
+    },
+    postFooterRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingTop: 8,
+      borderTopWidth: 1,
+      borderTopColor: isDark ? '#1E293B' : 'rgba(15, 23, 42, 0.05)',
+    },
+    postFooterLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+    },
+    postLikesText: {
+      fontFamily: Typography.bold,
+      fontSize: 12,
+      color: '#EC4899',
+      fontWeight: '700',
+    },
+    postFooterRight: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+    },
+    postCommentsText: {
+      fontFamily: Typography.medium,
+      fontSize: 12,
+      color: Colors.text.secondary,
+    },
+    achievementsTabContainer: {
+      gap: 12,
+    },
+    achievementCard: {
+      backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
+      borderRadius: 16,
+      borderWidth: 1.2,
+      borderColor: isDark ? '#1E293B' : 'rgba(15, 23, 42, 0.08)',
+      padding: 16,
+    },
+    achievementBadgePill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      alignSelf: 'flex-start',
+      gap: 6,
+      backgroundColor: 'rgba(245, 158, 11, 0.15)',
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 8,
+      marginBottom: 8,
+    },
+    achievementBadgeText: {
+      fontFamily: Typography.bold,
+      fontSize: 11,
+      color: '#F59E0B',
+      fontWeight: '700',
+    },
+    achievementTitle: {
+      fontFamily: Typography.bold,
+      fontSize: 15,
+      fontWeight: '700',
+      color: Colors.text.primary,
+      marginBottom: 4,
+    },
+    achievementDesc: {
+      fontFamily: Typography.regular,
+      fontSize: 13,
+      lineHeight: 19,
+      color: isDark ? '#CBD5E1' : '#475569',
+      marginBottom: 8,
+    },
+    achievementDate: {
+      fontFamily: Typography.medium,
+      fontSize: 11,
+      color: Colors.text.secondary,
+    },
+    rosterTabContainer: {
+      gap: 10,
     },
     searchBarWrap: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: isDark ? '#111827' : Colors.background.canvas,
-      borderRadius: 10,
-      paddingHorizontal: 12,
-      height: 40,
-      marginBottom: 12,
+      backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
+      borderRadius: 12,
       borderWidth: 1,
-      borderColor: isDark ? '#1E293B' : Colors.border.subtle,
+      borderColor: isDark ? '#1E293B' : 'rgba(15, 23, 42, 0.08)',
+      paddingHorizontal: 12,
+      height: 42,
       gap: 8,
+      marginBottom: 10,
     },
-    searchInput: {
+    searchBarInput: {
       flex: 1,
-      fontSize: 13,
       fontFamily: Typography.regular,
+      fontSize: 13,
       color: Colors.text.primary,
-      padding: 0,
     },
-    filterChipsRow: {
+    filterRow: {
       flexDirection: 'row',
       gap: 8,
-      marginBottom: 14,
+      marginBottom: 10,
     },
-    filterChip: {
+    filterPill: {
       paddingHorizontal: 12,
-      paddingVertical: 6,
-      borderRadius: 8,
-      backgroundColor: isDark ? '#111827' : Colors.background.canvas,
-      borderWidth: 1,
-      borderColor: isDark ? '#1E293B' : Colors.border.subtle,
+      paddingVertical: 5,
+      borderRadius: 14,
+      backgroundColor: isDark ? '#0F172A' : '#F1F5F9',
     },
-    filterChipActive: {
-      backgroundColor: isDark ? 'rgba(37, 99, 235, 0.25)' : 'rgba(37, 99, 235, 0.15)',
-      borderColor: Colors.primary.main,
+    filterPillActive: {
+      backgroundColor: '#2563EB',
     },
-    filterChipText: {
-      fontSize: 12,
+    filterPillText: {
       fontFamily: Typography.medium,
+      fontSize: 12,
       color: Colors.text.secondary,
     },
-    filterChipTextActive: {
-      color: isDark ? '#38BDF8' : Colors.primary.main,
-      fontFamily: Typography.semiBold,
+    filterPillTextActive: {
+      color: '#FFFFFF',
+      fontWeight: '700',
     },
-    rosterList: {
-      gap: 10,
-    },
-    memberCard: {
+    memberRowCard: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: isDark ? '#111827' : Colors.background.canvas,
-      borderRadius: 12,
+      backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
+      borderRadius: 14,
       padding: 12,
       borderWidth: 1,
-      borderColor: isDark ? '#1E293B' : Colors.border.subtle,
-      gap: 12,
+      borderColor: isDark ? '#1E293B' : 'rgba(15, 23, 42, 0.08)',
+      gap: 10,
     },
-    memberAvatar: {
-      width: 42,
-      height: 42,
-      borderRadius: 21,
-      backgroundColor: isDark ? '#1E293B' : '#E2E8F0',
+    memberAvatarCircle: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: '#2563EB',
       alignItems: 'center',
       justifyContent: 'center',
     },
-    memberAvatarLead: {
-      borderWidth: 2,
-      borderColor: isDark ? '#38BDF8' : Colors.primary.main,
-    },
-    memberAvatarText: {
-      fontSize: 15,
+    memberAvatarInitial: {
       fontFamily: Typography.bold,
-      color: Colors.text.primary,
+      fontSize: 14,
+      color: '#FFFFFF',
     },
-    memberAvatarTextLead: {
-      color: isDark ? '#38BDF8' : Colors.primary.main,
-    },
-    memberDetailsCol: {
+    memberInfoCol: {
       flex: 1,
     },
     memberNameRow: {
@@ -880,121 +1237,96 @@ function createStyles(Colors: ColorTokens, isDark: boolean) {
       gap: 6,
     },
     memberFullName: {
-      fontSize: 14,
       fontFamily: Typography.bold,
+      fontSize: 13.5,
+      fontWeight: '700',
       color: Colors.text.primary,
-      maxWidth: '75%',
     },
-    leadBadgeMini: {
-      backgroundColor: isDark ? 'rgba(56, 189, 248, 0.2)' : 'rgba(37, 99, 235, 0.1)',
+    leadTag: {
+      backgroundColor: 'rgba(56, 189, 248, 0.2)',
       paddingHorizontal: 6,
-      paddingVertical: 1,
-      borderRadius: 4,
+      paddingVertical: 2,
+      borderRadius: 6,
     },
-    leadBadgeMiniText: {
-      fontSize: 10,
+    leadTagText: {
       fontFamily: Typography.bold,
-      color: isDark ? '#38BDF8' : Colors.primary.main,
+      fontSize: 9.5,
+      color: '#38BDF8',
+      fontWeight: '800',
     },
-    memberRoleText: {
-      fontSize: 12,
-      fontFamily: Typography.medium,
-      color: isDark ? '#94A3B8' : Colors.text.secondary,
-      marginTop: 1,
-    },
-    memberSubRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6,
-      marginTop: 3,
-    },
-    memberDeptText: {
-      fontSize: 11,
+    memberSubText: {
       fontFamily: Typography.regular,
+      fontSize: 11.5,
       color: Colors.text.secondary,
-      maxWidth: '65%',
+      marginTop: 2,
     },
-    usnBadge: {
-      backgroundColor: isDark ? '#1E293B' : '#E2E8F0',
-      paddingHorizontal: 5,
-      paddingVertical: 1,
-      borderRadius: 4,
+    memberChatBtn: {
+      padding: 8,
+      borderRadius: 8,
+      backgroundColor: isDark ? 'rgba(56, 189, 248, 0.12)' : 'rgba(37, 99, 235, 0.08)',
     },
-    usnBadgeText: {
-      fontSize: 9,
-      fontFamily: Typography.semiBold,
-      color: Colors.text.secondary,
-    },
-    memberMessageBtn: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
-      backgroundColor: isDark ? '#1E293B' : '#E2E8F0',
-      alignItems: 'center',
+    creationModalBackdrop: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.75)',
       justifyContent: 'center',
-    },
-    emptyRoster: {
       alignItems: 'center',
-      paddingVertical: 24,
-      gap: 8,
+      paddingHorizontal: 20,
     },
-    emptyRosterText: {
-      fontSize: 13,
-      fontFamily: Typography.regular,
-      color: Colors.text.secondary,
+    creationCard: {
+      width: '100%',
+      maxWidth: 380,
+      backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
+      borderRadius: 20,
+      padding: 20,
+      borderWidth: 1.2,
+      borderColor: isDark ? '#1E293B' : 'rgba(15, 23, 42, 0.1)',
+    },
+    creationTitle: {
+      fontFamily: Typography.bold,
+      fontSize: 16,
+      fontWeight: '700',
+      color: Colors.text.primary,
+      marginBottom: 14,
       textAlign: 'center',
     },
-    bottomActionBar: {
-      position: 'absolute',
-      bottom: 0,
-      left: 0,
-      right: 0,
-      backgroundColor: isDark ? '#0F172A' : Colors.background.surface,
-      borderTopWidth: 1,
-      borderTopColor: isDark ? '#1E293B' : Colors.border.subtle,
-      paddingHorizontal: 16,
-      paddingTop: 12,
-      ...Platform.select({
-        ios: {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: -3 },
-          shadowOpacity: 0.15,
-          shadowRadius: 6,
-        },
-        android: {
-          elevation: 8,
-        },
-      }),
-    },
-    joinButton: {
-      height: 48,
+    creationInput: {
+      backgroundColor: isDark ? '#1E293B' : '#F8FAFC',
       borderRadius: 12,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 8,
-    },
-    notJoinedButton: {
-      backgroundColor: Colors.primary.main,
-    },
-    joinedButton: {
-      backgroundColor: isDark ? '#1E293B' : '#E2E8F0',
       borderWidth: 1,
-      borderColor: isDark ? '#334155' : Colors.border.subtle,
+      borderColor: isDark ? '#334155' : 'rgba(15, 23, 42, 0.1)',
+      paddingHorizontal: 12,
+      height: 44,
+      fontFamily: Typography.regular,
+      fontSize: 13.5,
+      color: Colors.text.primary,
+      marginBottom: 12,
     },
-    joinButtonText: {
-      fontSize: 15,
+    creationActionsRow: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      gap: 12,
+      marginTop: 6,
+    },
+    creationCancelBtn: {
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+    },
+    creationCancelText: {
+      fontFamily: Typography.medium,
+      fontSize: 13.5,
+      color: Colors.text.secondary,
+    },
+    creationSubmitBtn: {
+      paddingHorizontal: 18,
+      paddingVertical: 10,
+      borderRadius: 10,
+      backgroundColor: '#2563EB',
+    },
+    creationSubmitText: {
       fontFamily: Typography.bold,
+      fontSize: 13.5,
+      fontWeight: '700',
       color: '#FFFFFF',
-    },
-    joinedButtonText: {
-      fontSize: 15,
-      fontFamily: Typography.semiBold,
-      color: isDark ? '#F8FAFC' : Colors.text.primary,
-    },
-    btnPressed: {
-      opacity: 0.8,
-      transform: [{ scale: 0.98 }],
     },
   });
 }

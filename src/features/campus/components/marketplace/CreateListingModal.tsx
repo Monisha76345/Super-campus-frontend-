@@ -64,6 +64,7 @@ export function CreateListingModal({
   const [category, setCategory] = useState<MarketplaceCategory>('Uncategorized');
   const [contactPhone, setContactPhone] = useState('');
   const [contactEmail, setContactEmail] = useState('');
+  const [listingType, setListingType] = useState<'CAMPUS_STORE' | 'BUY_SELL'>(isAdmin ? 'CAMPUS_STORE' : 'BUY_SELL');
   const [photos, setPhotos] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
@@ -143,6 +144,7 @@ export function CreateListingModal({
         price: parsedPrice,
         condition,
         category,
+        listingType,
         contactPhone: contactPhone.trim() || undefined,
         contactEmail: contactEmail.trim() || undefined,
         images: photos,

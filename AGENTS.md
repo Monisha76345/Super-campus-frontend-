@@ -6,7 +6,7 @@ This is an Expo / React Native mobile application built for both **iOS** and **A
 
 ## 1. Core Stack & Environment
 
-- **Framework**: Expo (SDK 57) with Expo Router (File-based routing under `src/app/`)
+- **Framework**: Expo (SDK 58) with Expo Router (File-based routing under `src/app/`)
 - **Language**: TypeScript (`tsconfig.json` paths `@/*` -> `./src/*`)
 - **Platforms**: Android & iOS (also supports Web previews)
 - **Styling**: Tailwind CSS / NativeWind styling paradigms & structured design tokens (`src/constants/theme.ts`)

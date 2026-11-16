@@ -5,14 +5,15 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'r
 
 import { ColorTokens } from '@/constants/colors';
 import { Typography } from '@/constants/fonts';
-import { useColors } from '@/theme/app-theme';
-import { openTab } from '@/features/campus/navigation';
 import { useAuthSession } from '@/features/auth';
+import { outpassApi } from '@/features/campus/api/outpass-api';
+import { openTab } from '@/features/campus/navigation';
+import { OutpassItem } from '@/features/campus/types/outpass.types';
 import { profileApi } from '@/features/profile/api/profile-api';
 import { CampusProfile } from '@/features/profile/types';
-import { outpassApi } from '@/features/campus/api/outpass-api';
-import { OutpassItem } from '@/features/campus/types/outpass.types';
+import { useColors } from '@/theme/app-theme';
 
+import { CsvDirectoryImportModal } from '@/features/campus/components/admin/CsvDirectoryImportModal';
 import { CommunityHeroCard } from './CommunityHeroCard';
 import { FoodDiningSection } from './FoodDiningSection';
 import { GreetingBanner } from './GreetingBanner';
@@ -20,7 +21,6 @@ import { HomeBottomTabs, TabKey } from './HomeBottomTabs';
 import { HomeHeader } from './HomeHeader';
 import { QuickActionCategories } from './QuickActionCategories';
 import { StatusCardsGrid } from './StatusCardsGrid';
-import { CsvDirectoryImportModal } from '@/features/campus/components/admin/CsvDirectoryImportModal';
 
 function formatPassTime(isoString: string): string {
   try {

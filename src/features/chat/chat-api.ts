@@ -39,12 +39,14 @@ export async function sendMessageApi(
   tenantId: string,
   threadId: string,
   content: string,
+  mediaUrl?: string,
+  mediaType?: 'IMAGE' | 'VIDEO',
 ): Promise<ChatMessage> {
   return apiRequest<ChatMessage>(`/chat/threads/${threadId}/messages`, {
     method: 'POST',
     token,
     tenantId,
-    body: { content },
+    body: { content, mediaUrl, mediaType },
   });
 }
 
@@ -66,12 +68,13 @@ export async function createGroupChatApi(
   tenantId: string,
   name: string,
   memberUserIds: string[],
+  photoKey?: string,
 ): Promise<ChatThread> {
   return apiRequest<ChatThread>('/chat/threads/group', {
     method: 'POST',
     token,
     tenantId,
-    body: { name, memberUserIds },
+    body: { name, memberUserIds, photoKey },
   });
 }
 
@@ -91,7 +94,7 @@ export async function updateGroupChatApi(
   token: string,
   tenantId: string,
   threadId: string,
-  body: { name?: string; addMemberUserIds?: string[]; removeUserId?: string },
+  body: { name?: string; photoKey?: string; addMemberUserIds?: string[]; removeUserId?: string },
 ): Promise<ChatThread> {
   return apiRequest<ChatThread>(`/chat/threads/${threadId}/group`, {
     method: 'PATCH',

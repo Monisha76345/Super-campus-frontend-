@@ -12,10 +12,45 @@ export interface CampusEvent {
   capacity: number | null;
   registeredCount: number;
   bannerKey: string | null;
+  bannerUrl?: string | null;
   status: 'UPCOMING' | 'ONGOING' | 'COMPLETED' | 'CANCELLED';
   formattedDate: string;
   formattedTime: string;
   createdBy: string;
+}
+
+export interface ClubMember {
+  userId: string;
+  fullName: string;
+  clubRole: string;
+  department: string;
+  batch?: string | null;
+  usn?: string | null;
+  initials: string;
+  isLead: boolean;
+}
+
+export interface ClubPost {
+  id: string;
+  clubId: string;
+  clubName: string;
+  title?: string;
+  content: string;
+  imageUrl?: string;
+  likes: number;
+  isLiked?: boolean;
+  commentsCount: number;
+  createdAt: string;
+}
+
+export interface ClubAchievement {
+  id: string;
+  clubId: string;
+  title: string;
+  description: string;
+  badgeText: string;
+  date: string;
+  imageUrl?: string;
 }
 
 export interface CampusClub {
@@ -25,7 +60,17 @@ export interface CampusClub {
   description: string;
   memberCount: number;
   bannerKey: string | null;
+  bannerUrl?: string | null;
   status: string;
+  leadUserId?: string | null;
+  leadName?: string | null;
+  meetingSchedule?: string | null;
+  roomOrVenue?: string | null;
+  contactEmail?: string | null;
+  isJoined?: boolean;
+  members?: ClubMember[];
+  posts?: ClubPost[];
+  achievements?: ClubAchievement[];
 }
 
 export interface CampusOpportunity {
@@ -38,6 +83,9 @@ export interface CampusOpportunity {
   description: string;
   applyUrl: string | null;
   deadline: string | null;
+  documentUrl?: string | null;
+  documentName?: string | null;
+  skillsAndEligibility?: string | null;
 }
 
 export interface ConnectMember {
@@ -77,6 +125,7 @@ export interface CreateEventPayload {
   startsAt: string;
   endsAt: string;
   capacity?: number;
+  bannerUrl?: string;
 }
 
 export interface CreateOpportunityPayload {
@@ -89,4 +138,6 @@ export interface CreateOpportunityPayload {
   stipendOrSalary?: string;
   deadline?: string;
   applyUrl?: string;
+  documentUrl?: string;
+  documentName?: string;
 }

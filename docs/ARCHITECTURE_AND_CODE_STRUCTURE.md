@@ -15,13 +15,13 @@ This document defines the production engineering standard, code structure, and a
 
 | Layer | Technology | Version | Purpose |
 | :--- | :--- | :--- | :--- |
-| **Framework** | Expo SDK | `~57.0.25` | Native runtime, OTA updates, Continuous Native Generation (CNG) |
-| **Engine** | React Native | `0.86.3` (React 19) | Cross-platform native rendering for iOS & Android |
-| **Routing** | Expo Router | `~57.0.23` | File-system-based, deep-link ready, fully typed navigation |
+| **Framework** | Expo SDK | `~58.0.19` | Native runtime, OTA updates, Continuous Native Generation (CNG) |
+| **Engine** | React Native | `0.88.0` (React 19.3) | Cross-platform native rendering for iOS & Android |
+| **Routing** | Expo Router | `~58.0.26` | File-system-based, deep-link ready, fully typed navigation |
 | **Language** | TypeScript | `~6.0.3` | Strict type safety across components, models, and APIs |
 | **Styling & Theme** | Design Token System / Tailwind CSS Paradigm | - | Obsidian Black & Electric Blue design tokens with responsive scaling |
-| **Layout & Ergonomics** | React Native Safe Area Context | `~5.7.0` | Safe padding for iPhone Dynamic Island, notches, and Android system bars |
-| **Motion** | React Native Reanimated | `4.5.1` | 60/120 FPS native thread animations & glow transitions |
+| **Layout & Ergonomics** | React Native Safe Area Context | `~5.10.1` | Safe padding for iPhone Dynamic Island, notches, and Android system bars |
+| **Motion** | React Native Reanimated | `4.7.1` | 60/120 FPS native thread animations & glow transitions |
 
 ---
 

@@ -36,15 +36,10 @@ export function ConnectHubScreen() {
   const [selectedMember, setSelectedMember] = useState<ConnectMember | null>(null);
   const [selectedFeedTab, setSelectedFeedTab] = useState<ConnectTab>('events');
   const [opportunityType, setOpportunityType] = useState<'INTERNSHIP' | 'JOB'>('INTERNSHIP');
-  const [screenTransitioning, setScreenTransitioning] = useState(false);
 
   const transitionTo = (nextMode: ConnectViewMode, tab?: ConnectTab) => {
-    setScreenTransitioning(true);
     if (tab) setSelectedFeedTab(tab);
-    setTimeout(() => {
-      setMode(nextMode);
-      setScreenTransitioning(false);
-    }, 180);
+    setMode(nextMode);
   };
 
   const handleSelectCategory = (tab: ConnectTab) => {
@@ -64,8 +59,6 @@ export function ConnectHubScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: Colors.background.canvas }}>
-      {screenTransitioning && <LogoLoader overlay text="Loading Connect..." />}
-
       {mode === 'hub' && (
         <ConnectHomeScreen
           campusName={campusName}

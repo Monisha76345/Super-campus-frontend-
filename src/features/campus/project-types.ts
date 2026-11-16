@@ -41,12 +41,41 @@ export interface ProjectMediaItem {
   fileName?: string | null;
 }
 
+export interface ProjectContribution {
+  id: string;
+  projectId: string;
+  contributorName: string;
+  contributorRole?: string | null;
+  fundingType: 'COLLEGE_FUNDING' | 'CROWDFUNDING';
+  amount: number;
+  paymentMethod: string;
+  transactionId: string;
+  paymentStatus: 'PENDING' | 'VERIFIED' | 'FAILED';
+  createdAt: string;
+}
+
+export interface ProjectApplication {
+  id: string;
+  projectId: string;
+  applicantName: string;
+  applicantRole?: string | null;
+  applicantUsn?: string | null;
+  roleApplied: string;
+  message?: string | null;
+  status: 'PENDING' | 'ACCEPTED' | 'REJECTED';
+  createdAt: string;
+}
+
 export interface Project {
   id: string;
   campusId: string;
   creatorId: string;
   creatorName?: string | null;
   creatorUsn?: string | null;
+  creatorRole?: string | null;
+  creatorDepartment?: string | null;
+  creatorEmployeeId?: string | null;
+  creatorBatch?: string | null;
   title: string;
   shortDescription: string;
   moreDetails?: string | null;
@@ -57,6 +86,9 @@ export interface Project {
   location: string;
   visibility: ProjectVisibility;
   bannerUrl?: string | null;
+  fundingTarget?: number;
+  fundingRaised?: number;
+  backersCount?: number;
   skills: string[];
   supportNeeds: ProjectSupportItem[];
   media: ProjectMediaItem[];
@@ -78,6 +110,7 @@ export interface CreateProjectPayload {
   duration?: string;
   location?: string;
   visibility?: ProjectVisibility;
+  fundingTarget?: number;
   skills?: string[];
   supportNeeds?: ProjectSupportItem[];
   bannerUrl?: string;

@@ -200,3 +200,78 @@ export async function cancelSportsBookingApi(
     body: { reason },
   });
 }
+
+export async function callOffSportsDayApi(
+  token: string,
+  tenantId: string,
+  payload: {
+    facilityId: string;
+    closureDate: string;
+    reason: string;
+    startTime?: string;
+    endTime?: string;
+  },
+): Promise<{ message: string; closuresCount: number }> {
+  return apiRequest<{ message: string; closuresCount: number }>('/sports/admin/call-off', {
+    method: 'POST',
+    token,
+    tenantId,
+    body: payload,
+  });
+}
+
+export async function reopenSportsDayApi(
+  token: string,
+  tenantId: string,
+  payload: {
+    facilityId: string;
+    closureDate: string;
+  },
+): Promise<{ message: string; reopenedCount: number }> {
+  return apiRequest<{ message: string; reopenedCount: number }>('/sports/admin/reopen', {
+    method: 'POST',
+    token,
+    tenantId,
+    body: payload,
+  });
+}
+
+export async function updateSportsFacilityTimingApi(
+  token: string,
+  tenantId: string,
+  facilityId: string,
+  payload: {
+    openingTime?: string;
+    closingTime?: string;
+    slotDurationMinutes?: number;
+  },
+): Promise<SportsFacility> {
+  return apiRequest<SportsFacility>(`/sports/admin/facilities/${facilityId}/timing`, {
+    method: 'PATCH',
+    token,
+    tenantId,
+    body: payload,
+  });
+}
+
+export async function fetchSportsClosuresApi(
+  token?: string,
+  tenantId?: string,
+  query?: { facilityId?: string; closureDate?: string },
+): Promise<any[]> {
+  try {
+    const q: string[] = [];
+    if (query?.facilityId) q.push(`facilityId=${encodeURIComponent(query.facilityId)}`);
+    if (query?.closureDate) q.push(`closureDate=${encodeURIComponent(query.closureDate)}`);
+    const qs = q.length > 0 ? `?${q.join('&')}` : '';
+    return await apiRequest<any[]>(`/sports/admin/closures${qs}`, {
+      method: 'GET',
+      token,
+      tenantId,
+    });
+  } catch (error) {
+    console.warn('fetchSportsClosuresApi error:', error);
+    return [];
+  }
+}
+

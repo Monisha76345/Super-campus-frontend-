@@ -16,6 +16,8 @@ export type MarketplaceCondition = 'new' | 'like new' | 'good' | 'fair' | 'poor'
 
 export type MarketplaceStatus = 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED' | 'SOLD';
 
+export type MarketplaceListingType = 'CAMPUS_STORE' | 'BUY_SELL';
+
 export interface MarketplaceItem {
   id: string;
   campusId: string;
@@ -28,6 +30,9 @@ export interface MarketplaceItem {
   sellerId: string;
   sellerName: string;
   sellerRole: string;
+  listingType?: MarketplaceListingType | string;
+  contactPhone?: string | null;
+  contactEmail?: string | null;
   status: MarketplaceStatus;
   rejectionReason?: string | null;
   approvedBy?: string | null;
@@ -44,7 +49,10 @@ export interface CreateMarketplaceItemPayload {
   price: number;
   condition: MarketplaceCondition;
   category: MarketplaceCategory;
+  listingType?: MarketplaceListingType | string;
   images?: string[];
+  contactPhone?: string;
+  contactEmail?: string;
 }
 
 export interface MarketplaceFilterParams {
@@ -52,4 +60,6 @@ export interface MarketplaceFilterParams {
   condition?: MarketplaceCondition;
   search?: string;
   status?: MarketplaceStatus;
+  sellerRole?: string;
+  listingType?: MarketplaceListingType | string;
 }

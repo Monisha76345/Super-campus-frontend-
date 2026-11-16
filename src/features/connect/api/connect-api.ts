@@ -37,6 +37,30 @@ export async function fetchClubsApi(token: string, tenantId: string): Promise<Ca
   });
 }
 
+export async function fetchClubDetailsApi(
+  token: string,
+  tenantId: string,
+  clubId: string,
+): Promise<CampusClub> {
+  return apiRequest<CampusClub>(`/connect/clubs/${clubId}`, {
+    method: 'GET',
+    token,
+    tenantId,
+  });
+}
+
+export async function toggleJoinClubApi(
+  token: string,
+  tenantId: string,
+  clubId: string,
+): Promise<CampusClub> {
+  return apiRequest<CampusClub>(`/connect/clubs/${clubId}/join`, {
+    method: 'POST',
+    token,
+    tenantId,
+  });
+}
+
 export async function fetchOpportunitiesApi(
   token: string,
   tenantId: string,

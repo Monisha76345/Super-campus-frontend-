@@ -18,6 +18,8 @@ interface MarketplaceItemCardProps {
   onPress: () => void;
   onLikeToggle?: () => void;
   showStatusBadge?: boolean;
+  isAdmin?: boolean;
+  onAdminDelete?: () => void;
 }
 
 export const MarketplaceItemCard = memo(function MarketplaceItemCard({
@@ -25,9 +27,17 @@ export const MarketplaceItemCard = memo(function MarketplaceItemCard({
   onPress,
   onLikeToggle,
   showStatusBadge = false,
+  isAdmin = false,
+  onAdminDelete,
 }: MarketplaceItemCardProps) {
   const Colors = useColors();
   const styles = useMemo(() => createStyles(Colors), [Colors]);
+
+  const isOfficialAdmin =
+    item.sellerRole?.toUpperCase() === 'CAMPUS_ADMIN' ||
+    item.sellerRole?.toUpperCase() === 'ADMIN' ||
+    item.sellerRole?.toLowerCase() === 'campus_admin' ||
+    item.sellerRole?.toLowerCase() === 'admin';
 
   const getInitials = (name?: string) => {
     if (!name || !name.trim()) return 'CM';
@@ -90,6 +100,29 @@ export const MarketplaceItemCard = memo(function MarketplaceItemCard({
           </View>
         )}
 
+        {/* Official Campus Store badge */}
+        {isOfficialAdmin && (
+          <View style={styles.officialBadge}>
+            <Ionicons name="shield-checkmark" size={11} color="#FFFFFF" style={{ marginRight: 3 }} />
+            <Text style={styles.officialBadgeText}>Official</Text>
+          </View>
+        )}
+
+        {/* Quick Admin Delete Button */}
+        {isAdmin && onAdminDelete && (
+          <Pressable
+            style={styles.adminDeleteBtn}
+            hitSlop={8}
+            onPress={(e) => {
+              e.stopPropagation();
+              onAdminDelete();
+            }}
+            accessibilityLabel="Delete product as admin"
+          >
+            <Ionicons name="trash-outline" size={14} color="#EF4444" />
+          </Pressable>
+        )}
+
         {renderStatusBadge()}
       </View>
 
@@ -123,12 +156,15 @@ export const MarketplaceItemCard = memo(function MarketplaceItemCard({
         {/* Footer: User Avatar + Name & Heart Like */}
         <View style={styles.footerRow}>
           <View style={styles.sellerRow}>
-            <View style={styles.avatarCircle}>
-              <Text style={styles.avatarText}>{getInitials(item.sellerName)}</Text>
+            <View style={[styles.avatarCircle, isOfficialAdmin && { backgroundColor: Colors.primary.main }]}>
+              <Text style={styles.avatarText}>{isOfficialAdmin ? 'ADM' : getInitials(item.sellerName)}</Text>
             </View>
             <Text style={styles.sellerName} numberOfLines={1}>
               {item.sellerName}
             </Text>
+            {isOfficialAdmin && (
+              <Ionicons name="checkmark-circle" size={13} color={Colors.primary.accent} style={{ marginLeft: 3 }} />
+            )}
           </View>
 
           <Pressable
@@ -203,6 +239,38 @@ function createStyles(Colors: ColorTokens) {
       fontSize: 10,
       fontWeight: '700',
       textTransform: 'uppercase',
+    },
+    officialBadge: {
+      position: 'absolute',
+      bottom: 8,
+      left: 8,
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: '#2563EBEE',
+      paddingHorizontal: 7,
+      paddingVertical: 2.5,
+      borderRadius: 6,
+    },
+    officialBadgeText: {
+      fontFamily: Typography.bold,
+      fontSize: 10,
+      fontWeight: '700',
+      color: '#FFFFFF',
+      letterSpacing: 0.3,
+    },
+    adminDeleteBtn: {
+      position: 'absolute',
+      top: 8,
+      right: 8,
+      width: 26,
+      height: 26,
+      borderRadius: 13,
+      backgroundColor: 'rgba(15, 23, 42, 0.85)',
+      borderWidth: 1,
+      borderColor: 'rgba(239, 68, 68, 0.4)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 5,
     },
     content: {
       padding: 10,

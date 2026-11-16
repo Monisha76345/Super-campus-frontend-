@@ -1,12 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ColorTokens } from '@/constants/colors';
 import { Typography } from '@/constants/fonts';
-import { useAppTheme } from '@/theme/app-theme';
 import { openService } from '@/features/campus/navigation';
+import { useAppTheme } from '@/theme/app-theme';
 
 export function QuickActionCategories() {
   const { colors: Colors, scheme } = useAppTheme();

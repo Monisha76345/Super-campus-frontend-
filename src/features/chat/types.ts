@@ -31,6 +31,8 @@ export interface ChatMessage {
   senderPhotoKey?: string | null;
   senderInitials?: string | null;
   content: string;
+  mediaUrl?: string | null;
+  mediaType?: 'IMAGE' | 'VIDEO' | null;
   status: 'SENT' | 'DELIVERED' | 'READ';
   isMine: boolean;
   createdAt: string;

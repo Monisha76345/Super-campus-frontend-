@@ -2,7 +2,11 @@ export type SportType =
   | 'BADMINTON'
   | 'BASKETBALL'
   | 'PICKLEBALL'
-  | 'TABLE_TENNIS';
+  | 'TABLE_TENNIS'
+  | 'FOOTBALL'
+  | 'TENNIS'
+  | 'CRICKET'
+  | 'OTHER';
 
 
 export type VenueType = 'INDOOR' | 'OUTDOOR';
@@ -31,6 +35,7 @@ export interface SlotAvailability {
   startTime: string; // "18:00:00"
   endTime: string;   // "19:00:00"
   status: 'AVAILABLE' | 'BOOKED' | 'BLOCKED' | 'PAST';
+  blockedReason?: string;
   bookingId?: string;
   isOpenGame?: boolean;
   currentPlayers?: number;
@@ -87,3 +92,34 @@ export interface CreateBookingPayload {
   notes?: string;
   teammates?: { userId: string; userName: string; userUsn?: string }[];
 }
+
+export interface SportsFacilityClosure {
+  id: string;
+  campusId: string;
+  facilityId: string;
+  closureDate: string;
+  startTime: string;
+  endTime: string;
+  reason: string;
+  createdAt?: string;
+}
+
+export interface AdminCallOffPayload {
+  facilityId: string; // Specific ID or 'ALL'
+  closureDate: string; // YYYY-MM-DD
+  reason: string;
+  startTime?: string;
+  endTime?: string;
+}
+
+export interface AdminReopenPayload {
+  facilityId: string; // Specific ID or 'ALL'
+  closureDate: string; // YYYY-MM-DD
+}
+
+export interface AdminUpdateTimingPayload {
+  openingTime?: string;
+  closingTime?: string;
+  slotDurationMinutes?: number;
+}
+

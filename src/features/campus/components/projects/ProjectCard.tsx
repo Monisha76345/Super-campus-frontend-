@@ -100,6 +100,51 @@ export function ProjectCard({ project, onPress, onEdit }: ProjectCardProps) {
         {project.shortDescription}
       </Text>
 
+      {/* Creator Info Box (Visible to All Users) */}
+      <View style={styles.creatorRow}>
+        <View style={styles.creatorAvatarCircle}>
+          <Text style={styles.creatorAvatarText}>
+            {(project.creatorName || 'C').charAt(0).toUpperCase()}
+          </Text>
+        </View>
+        <View style={styles.creatorMetaCol}>
+          <View style={styles.creatorNameRow}>
+            <Text style={styles.creatorName} numberOfLines={1}>
+              {project.creatorName || 'Campus Member'}
+            </Text>
+            {project.creatorRole === 'FACULTY' ? (
+              <View style={[styles.rolePill, { backgroundColor: 'rgba(236, 72, 153, 0.15)', borderColor: 'rgba(236, 72, 153, 0.4)' }]}>
+                <Text style={[styles.rolePillText, { color: '#F472B6' }]}>Faculty</Text>
+              </View>
+            ) : project.creatorRole === 'ALUMNI' ? (
+              <View style={[styles.rolePill, { backgroundColor: 'rgba(245, 158, 11, 0.15)', borderColor: 'rgba(245, 158, 11, 0.4)' }]}>
+                <Text style={[styles.rolePillText, { color: '#FBBF24' }]}>Alumni</Text>
+              </View>
+            ) : (
+              <View style={[styles.rolePill, { backgroundColor: 'rgba(56, 189, 248, 0.15)', borderColor: 'rgba(56, 189, 248, 0.4)' }]}>
+                <Text style={[styles.rolePillText, { color: '#38BDF8' }]}>Student</Text>
+              </View>
+            )}
+          </View>
+
+          {/* Detailed identity lines requested by user */}
+          {project.creatorRole === 'FACULTY' ? (
+            <Text style={styles.creatorSubText} numberOfLines={1}>
+              {project.creatorDepartment ? `Dept: ${project.creatorDepartment}` : 'Faculty Member'}
+              {project.creatorEmployeeId ? ` · ID: ${project.creatorEmployeeId}` : project.creatorUsn ? ` · ID: ${project.creatorUsn}` : ''}
+            </Text>
+          ) : project.creatorRole === 'ALUMNI' ? (
+            <Text style={styles.creatorSubText} numberOfLines={1}>
+              Batch of {project.creatorBatch || 'Alumni'}
+            </Text>
+          ) : (
+            <Text style={styles.creatorSubText} numberOfLines={1}>
+              USN: {project.creatorUsn || 'Campus Student'}
+            </Text>
+          )}
+        </View>
+      </View>
+
       <View style={styles.footerRow}>
         <View style={styles.metaItem}>
           <Text style={styles.metaText}>{project.stage}</Text>
@@ -107,6 +152,13 @@ export function ProjectCard({ project, onPress, onEdit }: ProjectCardProps) {
         <View style={styles.metaItem}>
           <Text style={styles.metaText}>{project.duration || '3 – 6 Months'}</Text>
         </View>
+        {project.fundingTarget && project.fundingTarget > 0 ? (
+          <View style={[styles.metaItem, { backgroundColor: 'rgba(16, 185, 129, 0.12)', borderColor: 'rgba(16, 185, 129, 0.3)' }]}>
+            <Text style={[styles.metaText, { color: '#10B981', fontWeight: '700' }]}>
+              ₹{(project.fundingRaised || 0).toLocaleString('en-IN')} / ₹{project.fundingTarget.toLocaleString('en-IN')}
+            </Text>
+          </View>
+        ) : null}
         {project.skills && project.skills.length > 0 ? (
           <View style={styles.skillSnippet}>
             <Text style={styles.skillSnippetText} numberOfLines={1}>
@@ -182,7 +234,7 @@ function createStyles(Colors: ColorTokens) {
     },
     title: {
       fontFamily: Typography.bold,
-      fontSize: 20,
+      fontSize: 19,
       fontWeight: '700',
       color: Colors.text.primary,
       marginBottom: 6,
@@ -192,7 +244,67 @@ function createStyles(Colors: ColorTokens) {
       fontSize: 14,
       lineHeight: 20,
       color: Colors.text.secondary,
-      marginBottom: 14,
+      marginBottom: 12,
+    },
+    creatorRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: 'rgba(30, 41, 59, 0.45)',
+      borderRadius: 12,
+      padding: 10,
+      marginBottom: 12,
+      gap: 10,
+      borderWidth: 1,
+      borderColor: 'rgba(148, 163, 184, 0.15)',
+    },
+    creatorAvatarCircle: {
+      width: 34,
+      height: 34,
+      borderRadius: 17,
+      backgroundColor: 'rgba(56, 189, 248, 0.2)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: 'rgba(56, 189, 248, 0.4)',
+    },
+    creatorAvatarText: {
+      fontFamily: Typography.bold,
+      fontSize: 14,
+      fontWeight: '700',
+      color: '#38BDF8',
+    },
+    creatorMetaCol: {
+      flex: 1,
+      justifyContent: 'center',
+    },
+    creatorNameRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      marginBottom: 2,
+    },
+    creatorName: {
+      fontFamily: Typography.bold,
+      fontSize: 13,
+      fontWeight: '700',
+      color: Colors.text.primary,
+      flexShrink: 1,
+    },
+    rolePill: {
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 6,
+      borderWidth: 1,
+    },
+    rolePillText: {
+      fontFamily: Typography.medium,
+      fontSize: 10,
+      fontWeight: '600',
+    },
+    creatorSubText: {
+      fontFamily: Typography.regular,
+      fontSize: 11,
+      color: Colors.text.tertiary,
     },
     footerRow: {
       flexDirection: 'row',

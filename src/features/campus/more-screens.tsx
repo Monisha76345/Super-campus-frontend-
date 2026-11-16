@@ -88,16 +88,7 @@ export function BuzzScreen() {
   );
 }
 
-export function FoodScreen() {
-  return (
-    <CampusScreen title="Campus dining" subtitle="Same Campus. Healthier You." activeTab="services">
-      <Banner kicker="FOOD FOR YOU" title="Campus dining" body="Open cafes and the food court on NMIT." />
-      <CampusCard icon="pizza" title="Student Bistro" detail="Fast food and snacks · 10m wait" meta="Open" accent="#F59E0B" />
-      <CampusCard icon="cafe" title="Tech Cafe Express" detail="Coffee and bakery · 5m wait" meta="Open" accent="#38BDF8" />
-      <CampusCard icon="restaurant" title="NMIT Food Court" detail="Meals through the evening" meta="Open" accent="#F59E0B" />
-    </CampusScreen>
-  );
-}
+export { FoodScreen } from './food-screen';
 
 export function NotificationsScreen() {
   const Colors = useColors();

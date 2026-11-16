@@ -1,12 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Card } from '@/components/ui';
 import { ColorTokens } from '@/constants/colors';
-import { useColors } from '@/theme/app-theme';
 import { Typography } from '@/constants/fonts';
+import { useColors } from '@/theme/app-theme';
 
 interface CommunityHeroCardProps {
   title: string;
@@ -81,8 +81,8 @@ export function CommunityHeroCard({
 function createStyles(Colors: ColorTokens) {
   return StyleSheet.create({
   card: {
-    padding: 16,
-    borderRadius: 14,
+    padding: 18,
+    borderRadius: 26,
     backgroundColor: Colors.background.surface,
     borderWidth: 1,
     borderColor: Colors.border.subtle,
@@ -104,12 +104,12 @@ function createStyles(Colors: ColorTokens) {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: 'rgba(79, 70, 229, 0.08)',
+    backgroundColor: 'rgba(99, 102, 241, 0.16)',
     borderWidth: 1,
-    borderColor: 'rgba(79, 70, 229, 0.2)',
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    borderColor: 'rgba(129, 140, 248, 0.28)',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
   },
   livePulseDot: {
     width: 6,
@@ -120,7 +120,7 @@ function createStyles(Colors: ColorTokens) {
   badgeText: {
     fontFamily: Typography.bold,
     fontSize: 10,
-    color: '#4338CA',
+    color: '#A5B4FC',
     letterSpacing: 0.8,
     fontWeight: '700',
   },
@@ -182,9 +182,9 @@ function createStyles(Colors: ColorTokens) {
     alignItems: 'center',
     gap: 6,
     backgroundColor: Colors.primary.main,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
+    borderRadius: 999,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
     shadowColor: '#2563EB',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,

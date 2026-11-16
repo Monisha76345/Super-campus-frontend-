@@ -1,9 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Image,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -45,6 +47,7 @@ export function MarketplaceDetailModal({
   currentUserId,
   isAdmin,
 }: MarketplaceDetailModalProps) {
+  const router = useRouter();
   const Colors = useColors();
   const styles = useMemo(() => createStyles(Colors), [Colors]);
 
@@ -52,6 +55,8 @@ export function MarketplaceDetailModal({
   const [rejectReason, setRejectReason] = useState('');
   const [loadingAction, setLoadingAction] = useState(false);
   const [loadingActionText, setLoadingActionText] = useState('Processing...');
+  const [contactSheetVisible, setContactSheetVisible] = useState(false);
+  const [fullscreenPhotoIndex, setFullscreenPhotoIndex] = useState<number | null>(null);
 
   const [modalConfig, setModalConfig] = useState<{
     visible: boolean;
@@ -165,6 +170,66 @@ export function MarketplaceDetailModal({
     );
   };
 
+  const isOfficialAdmin =
+    item.sellerRole?.toUpperCase() === 'CAMPUS_ADMIN' ||
+    item.sellerRole?.toUpperCase() === 'ADMIN' ||
+    item.sellerRole?.toLowerCase() === 'campus_admin' ||
+    item.sellerRole?.toLowerCase() === 'admin';
+
+  const handleChatSeller = () => {
+    setContactSheetVisible(false);
+    onClose();
+    router.push({
+      pathname: '/inbox',
+      params: {
+        recipientId: item.sellerId,
+        recipientName: item.sellerName,
+      },
+    });
+  };
+
+  const handleCallSeller = () => {
+    if (!item.contactPhone) return;
+    const phoneUrl = `tel:${item.contactPhone.replace(/\s+/g, '')}`;
+    Linking.openURL(phoneUrl).catch(() => {
+      showModal('Call Failed', 'Unable to initiate phone call on this device.', 'error');
+    });
+  };
+
+  const handleWhatsAppSeller = () => {
+    if (!item.contactPhone) return;
+    const cleanNumber = item.contactPhone.replace(/[^0-9+]/g, '');
+    const message = encodeURIComponent(
+      `Hi ${item.sellerName}, I saw your listing for "${item.title}" (₹${item.price}) on Supercampus Marketplace. Is it still available?`
+    );
+    const waUrl = `whatsapp://send?phone=${cleanNumber}&text=${message}`;
+    const webWaUrl = `https://wa.me/${cleanNumber.replace('+', '')}?text=${message}`;
+    Linking.canOpenURL(waUrl)
+      .then((supported) => {
+        if (supported) {
+          return Linking.openURL(waUrl);
+        } else {
+          return Linking.openURL(webWaUrl);
+        }
+      })
+      .catch(() => {
+        Linking.openURL(webWaUrl).catch(() => {
+          showModal('WhatsApp Failed', 'Unable to open WhatsApp.', 'error');
+        });
+      });
+  };
+
+  const handleEmailSeller = () => {
+    if (!item.contactEmail) return;
+    const subject = encodeURIComponent(`Inquiry about ${item.title} on Supercampus Marketplace`);
+    const body = encodeURIComponent(
+      `Hi ${item.sellerName},\n\nI'm interested in your marketplace listing "${item.title}" priced at ₹${item.price}.\n\nIs it still available?`
+    );
+    Linking.openURL(`mailto:${item.contactEmail}?subject=${subject}&body=${body}`).catch(() => {
+      showModal('Email Failed', 'Unable to open email client.', 'error');
+    });
+  };
+
   const getInitials = (name?: string) => {
     if (!name) return 'CM';
     const parts = name.trim().split(/\s+/);
@@ -200,21 +265,35 @@ export function MarketplaceDetailModal({
           <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
             {/* Main Photo Gallery / Placeholder */}
             {hasPhotos ? (
-              <ScrollView
-                horizontal
-                pagingEnabled
-                showsHorizontalScrollIndicator={false}
-                style={styles.gallery}
-              >
-                {item.images.map((uri, idx) => (
-                  <Image
-                    key={idx}
-                    source={{ uri }}
-                    style={styles.galleryImage}
-                    resizeMode="cover"
-                  />
-                ))}
-              </ScrollView>
+              <View style={{ position: 'relative' }}>
+                <ScrollView
+                  horizontal
+                  pagingEnabled
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.gallery}
+                >
+                  {(item.images || []).map((uri, idx) => (
+                    <Pressable
+                      key={idx}
+                      onPress={() => setFullscreenPhotoIndex(idx)}
+                    >
+                      <Image
+                        source={{ uri }}
+                        style={styles.galleryImage}
+                        resizeMode="cover"
+                      />
+                    </Pressable>
+                  ))}
+                </ScrollView>
+                <Pressable
+                  onPress={() => setFullscreenPhotoIndex(0)}
+                  style={styles.viewFullHintPill}
+                  hitSlop={8}
+                >
+                  <Ionicons name="expand" size={13} color="#FFFFFF" />
+                  <Text style={styles.viewFullHintText}>View Full Photo</Text>
+                </Pressable>
+              </View>
             ) : (
               <View style={styles.placeholderBox}>
                 <Ionicons name="storefront-outline" size={64} color={Colors.text.tertiary} />
@@ -244,6 +323,14 @@ export function MarketplaceDetailModal({
             {/* Title */}
             <Text style={styles.title}>{item.title}</Text>
 
+            {/* Official Store Banner if listed by Admin */}
+            {isOfficialAdmin && (
+              <View style={styles.officialStoreBanner}>
+                <Ionicons name="shield-checkmark" size={16} color={Colors.primary.accent} />
+                <Text style={styles.officialStoreBannerText}>Official Campus Admin Listing</Text>
+              </View>
+            )}
+
             {/* Tags: Condition & Category */}
             <View style={styles.tagsRow}>
               <View style={styles.conditionTag}>
@@ -268,14 +355,37 @@ export function MarketplaceDetailModal({
 
             {/* Seller Info Card */}
             <View style={styles.sellerCard}>
-              <View style={styles.sellerAvatar}>
-                <Text style={styles.sellerAvatarText}>{getInitials(item.sellerName)}</Text>
+              <View style={[styles.sellerAvatar, isOfficialAdmin && { backgroundColor: Colors.primary.main }]}>
+                <Text style={styles.sellerAvatarText}>
+                  {isOfficialAdmin ? 'ADM' : getInitials(item.sellerName)}
+                </Text>
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.sellerName}>{item.sellerName}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <Text style={styles.sellerName}>{item.sellerName}</Text>
+                  {isOfficialAdmin && (
+                    <Ionicons name="checkmark-circle" size={14} color={Colors.primary.accent} />
+                  )}
+                </View>
                 <Text style={styles.sellerRole}>
-                  {item.sellerRole === 'CAMPUS_ADMIN' ? 'Campus Admin' : 'Student Seller'}
+                  {isOfficialAdmin ? 'Campus Admin (Official)' : 'Student Seller'}
                 </Text>
+                {(item.contactPhone || item.contactEmail) && (
+                  <View style={styles.sellerContactChipsRow}>
+                    {item.contactPhone && (
+                      <Pressable style={styles.sellerContactChip} onPress={handleCallSeller}>
+                        <Ionicons name="call-outline" size={11} color={Colors.primary.accent} />
+                        <Text style={styles.sellerContactChipText}>{item.contactPhone}</Text>
+                      </Pressable>
+                    )}
+                    {item.contactEmail && (
+                      <Pressable style={styles.sellerContactChip} onPress={handleEmailSeller}>
+                        <Ionicons name="mail-outline" size={11} color={Colors.primary.accent} />
+                        <Text style={styles.sellerContactChipText}>{item.contactEmail}</Text>
+                      </Pressable>
+                    )}
+                  </View>
+                )}
               </View>
               <View style={styles.likesBadge}>
                 <Ionicons name="heart" size={14} color={Colors.status.error} />
@@ -363,16 +473,10 @@ export function MarketplaceDetailModal({
               {!isSeller && item.status === 'APPROVED' && (
                 <Pressable
                   style={[styles.actionBtn, styles.contactBtn]}
-                  onPress={() => {
-                    showModal(
-                      'Contact Seller',
-                      `Interested in this item? You can connect with ${item.sellerName} on campus!`,
-                      'info',
-                    );
-                  }}
+                  onPress={() => setContactSheetVisible(true)}
                 >
                   <Ionicons name="chatbubbles-outline" size={18} color="#FFFFFF" />
-                  <Text style={styles.contactBtnText}>Message Seller</Text>
+                  <Text style={styles.contactBtnText}>Message / Contact Seller</Text>
                 </Pressable>
               )}
 
@@ -384,7 +488,9 @@ export function MarketplaceDetailModal({
                   disabled={loadingAction}
                 >
                   <Ionicons name="trash-outline" size={18} color={Colors.status.error} />
-                  <Text style={styles.deleteBtnText}>Delete Listing</Text>
+                  <Text style={styles.deleteBtnText}>
+                    {isAdmin && !isSeller ? 'Admin Delete Product' : 'Delete Listing'}
+                  </Text>
                 </Pressable>
               )}
             </View>
@@ -393,6 +499,85 @@ export function MarketplaceDetailModal({
           </ScrollView>
         </View>
       </View>
+
+      {/* Contact Options Sheet Modal */}
+      <Modal
+        visible={contactSheetVisible}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setContactSheetVisible(false)}
+      >
+        <View style={styles.contactSheetOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setContactSheetVisible(false)} />
+          <View style={styles.contactSheetContainer}>
+            <View style={styles.contactSheetHeader}>
+              <View style={{ flex: 1, marginRight: 10 }}>
+                <Text style={styles.contactSheetTitle}>Contact {item.sellerName}</Text>
+                <Text style={styles.contactSheetSubtitle} numberOfLines={1}>
+                  {item.title} • ₹{Number(item.price).toFixed(2)}
+                </Text>
+              </View>
+              <Pressable
+                onPress={() => setContactSheetVisible(false)}
+                hitSlop={10}
+                style={styles.contactSheetCloseBtn}
+              >
+                <Ionicons name="close" size={20} color={Colors.text.primary} />
+              </Pressable>
+            </View>
+
+            <View style={styles.contactSheetActions}>
+              {/* Option 1: Chat on Supercampus */}
+              <Pressable style={styles.contactOptionPrimary} onPress={handleChatSeller}>
+                <Ionicons name="chatbubble-ellipses" size={22} color="#FFFFFF" />
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={styles.contactOptionPrimaryTitle}>Chat on Supercampus</Text>
+                  <Text style={styles.contactOptionPrimarySubtitle}>
+                    Instant direct messaging inside campus
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#FFFFFF" />
+              </Pressable>
+
+              {/* Option 2: WhatsApp (if phone available) */}
+              {item.contactPhone ? (
+                <Pressable style={styles.contactOptionSecondary} onPress={handleWhatsAppSeller}>
+                  <Ionicons name="logo-whatsapp" size={20} color="#22C55E" />
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <Text style={styles.contactOptionSecondaryTitle}>WhatsApp</Text>
+                    <Text style={styles.contactOptionSecondarySubtitle}>{item.contactPhone}</Text>
+                  </View>
+                  <Ionicons name="open-outline" size={16} color={Colors.text.secondary} />
+                </Pressable>
+              ) : null}
+
+              {/* Option 3: Phone Call (if phone available) */}
+              {item.contactPhone ? (
+                <Pressable style={styles.contactOptionSecondary} onPress={handleCallSeller}>
+                  <Ionicons name="call-outline" size={20} color={Colors.primary.accent} />
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <Text style={styles.contactOptionSecondaryTitle}>Phone Call</Text>
+                    <Text style={styles.contactOptionSecondarySubtitle}>{item.contactPhone}</Text>
+                  </View>
+                  <Ionicons name="open-outline" size={16} color={Colors.text.secondary} />
+                </Pressable>
+              ) : null}
+
+              {/* Option 4: Email (if email available) */}
+              {item.contactEmail ? (
+                <Pressable style={styles.contactOptionSecondary} onPress={handleEmailSeller}>
+                  <Ionicons name="mail-outline" size={20} color={Colors.primary.accent} />
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <Text style={styles.contactOptionSecondaryTitle}>Send Email</Text>
+                    <Text style={styles.contactOptionSecondarySubtitle}>{item.contactEmail}</Text>
+                  </View>
+                  <Ionicons name="open-outline" size={16} color={Colors.text.secondary} />
+                </Pressable>
+              ) : null}
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <AppMessageModal
         visible={modalConfig.visible}
@@ -413,7 +598,57 @@ export function MarketplaceDetailModal({
       />
 
       {loadingAction && <LogoLoader overlay text={loadingActionText} />}
-    </Modal>
+    
+      {/* Fullscreen Photo Lightbox Modal */}
+      <Modal
+        visible={fullscreenPhotoIndex !== null}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setFullscreenPhotoIndex(null)}
+      >
+        <View style={styles.fullscreenBackdrop}>
+          <View style={styles.fullscreenHeader}>
+            <Text style={styles.fullscreenCounter}>
+              {fullscreenPhotoIndex !== null ? `${fullscreenPhotoIndex + 1} / ${item.images.length}` : ''}
+            </Text>
+            <Pressable
+              onPress={() => setFullscreenPhotoIndex(null)}
+              style={styles.fullscreenCloseBtn}
+              hitSlop={12}
+            >
+              <Ionicons name="close" size={28} color="#FFFFFF" />
+            </Pressable>
+          </View>
+          {fullscreenPhotoIndex !== null && item.images[fullscreenPhotoIndex] && (
+            <View style={styles.fullscreenImageContainer}>
+              <Image
+                source={{ uri: item.images[fullscreenPhotoIndex] }}
+                style={styles.fullscreenImage}
+                resizeMode="contain"
+              />
+            </View>
+          )}
+          {item.images.length > 1 && (
+            <View style={styles.fullscreenNavRow}>
+              <Pressable
+                disabled={fullscreenPhotoIndex === 0}
+                onPress={() => setFullscreenPhotoIndex((prev) => Math.max(0, (prev || 0) - 1))}
+                style={[styles.fullscreenNavBtn, fullscreenPhotoIndex === 0 && { opacity: 0.3 }]}
+              >
+                <Ionicons name="chevron-back" size={26} color="#FFFFFF" />
+              </Pressable>
+              <Pressable
+                disabled={fullscreenPhotoIndex === item.images.length - 1}
+                onPress={() => setFullscreenPhotoIndex((prev) => Math.min(item.images.length - 1, (prev || 0) + 1))}
+                style={[styles.fullscreenNavBtn, fullscreenPhotoIndex === item.images.length - 1 && { opacity: 0.3 }]}
+              >
+                <Ionicons name="chevron-forward" size={26} color="#FFFFFF" />
+              </Pressable>
+            </View>
+          )}
+        </View>
+      </Modal>
+  </Modal>
   );
 }
 
@@ -731,6 +966,198 @@ function createStyles(Colors: ColorTokens) {
       fontSize: 14,
       fontWeight: '600',
       color: Colors.status.error,
+    },
+    officialStoreBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: '#2563EB20',
+      borderWidth: 1,
+      borderColor: '#2563EB80',
+      borderRadius: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      gap: 8,
+      marginBottom: 12,
+    },
+    officialStoreBannerText: {
+      fontFamily: Typography.bold,
+      fontSize: 13,
+      fontWeight: '700',
+      color: Colors.primary.accent,
+    },
+    sellerContactChipsRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 6,
+      marginTop: 6,
+    },
+    sellerContactChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: Colors.background.elevated,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 6,
+      borderWidth: 1,
+      borderColor: Colors.border.subtle,
+    },
+    sellerContactChipText: {
+      fontFamily: Typography.medium,
+      fontSize: 11,
+      color: Colors.text.primary,
+    },
+    contactSheetOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.75)',
+      justifyContent: 'flex-end',
+    },
+    contactSheetContainer: {
+      backgroundColor: Colors.background.canvas,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      borderTopWidth: 1,
+      borderColor: Colors.border.card,
+      padding: 20,
+      paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+    },
+    contactSheetHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 20,
+    },
+    contactSheetTitle: {
+      fontFamily: Typography.bold,
+      fontSize: 18,
+      fontWeight: '700',
+      color: Colors.text.primary,
+    },
+    contactSheetSubtitle: {
+      fontFamily: Typography.regular,
+      fontSize: 13,
+      color: Colors.text.secondary,
+      marginTop: 2,
+    },
+    contactSheetCloseBtn: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: Colors.background.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    contactSheetActions: {
+      gap: 10,
+    },
+    contactOptionPrimary: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: Colors.primary.main,
+      padding: 14,
+      borderRadius: 14,
+    },
+    contactOptionPrimaryTitle: {
+      fontFamily: Typography.bold,
+      fontSize: 15,
+      fontWeight: '700',
+      color: '#FFFFFF',
+    },
+    contactOptionPrimarySubtitle: {
+      fontFamily: Typography.regular,
+      fontSize: 12,
+      color: 'rgba(255, 255, 255, 0.8)',
+      marginTop: 1,
+    },
+    contactOptionSecondary: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: Colors.background.surface,
+      borderWidth: 1,
+      borderColor: Colors.border.card,
+      padding: 14,
+      borderRadius: 14,
+    },
+    contactOptionSecondaryTitle: {
+      fontFamily: Typography.bold,
+      fontSize: 14,
+      fontWeight: '700',
+      color: Colors.text.primary,
+    },
+    contactOptionSecondarySubtitle: {
+      fontFamily: Typography.medium,
+      fontSize: 12,
+      color: Colors.text.secondary,
+      marginTop: 1,
+    },
+    viewFullHintPill: {
+      position: 'absolute',
+      bottom: 12,
+      right: 12,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      backgroundColor: 'rgba(0, 0, 0, 0.65)',
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: 'rgba(255, 255, 255, 0.25)',
+    },
+    viewFullHintText: {
+      fontFamily: Typography.medium,
+      fontSize: 11.5,
+      color: '#FFFFFF',
+    },
+    fullscreenBackdrop: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.95)',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    fullscreenHeader: {
+      position: 'absolute',
+      top: 50,
+      left: 20,
+      right: 20,
+      zIndex: 20,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    fullscreenCounter: {
+      fontFamily: Typography.bold,
+      fontSize: 15,
+      color: '#FFFFFF',
+      letterSpacing: 0.5,
+    },
+    fullscreenCloseBtn: {
+      padding: 6,
+      borderRadius: 20,
+      backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    },
+    fullscreenImageContainer: {
+      width: '100%',
+      height: '80%',
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingHorizontal: 10,
+    },
+    fullscreenImage: {
+      width: '100%',
+      height: '100%',
+    },
+    fullscreenNavRow: {
+      position: 'absolute',
+      bottom: 40,
+      flexDirection: 'row',
+      gap: 30,
+      alignItems: 'center',
+    },
+    fullscreenNavBtn: {
+      padding: 12,
+      borderRadius: 24,
+      backgroundColor: 'rgba(255, 255, 255, 0.2)',
     },
   });
 }

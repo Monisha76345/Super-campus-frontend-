@@ -53,6 +53,10 @@ export interface ProfileUpdate {
   visibility?: ProfileVisibility;
   residency?: ResidencyStatus;
   bio?: string;
+  department?: string;
+  batch?: string;
+  usn?: string;
+  collegeEmail?: string;
 }
 
 export interface EducationInput {

@@ -16,9 +16,12 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ColorTokens } from '@/constants/colors';
+import { useAuthSession } from '@/features/auth/session/AuthSessionProvider';
 import { searchUsersApi } from '@/features/chat/chat-api';
 import { SearchUser } from '@/features/chat/types';
 import { useAppTheme } from '@/theme/app-theme';
+
+import { AdminSportsControlsModal } from './AdminSportsControlsModal';
 
 import {
   createSportsBookingApi,
@@ -44,16 +47,23 @@ export const CAMPUS_SPORTS_LIST: SportCardItem[] = [
   {
     sportType: 'BADMINTON',
     title: 'Badminton',
-    subtitle: '1 courts · Indoor Stadium',
+    subtitle: '1 court · Indoor Stadium',
     tag: 'Indoor',
     icon: 'tennisball-outline',
   },
   {
     sportType: 'BASKETBALL',
     title: 'Basketball',
-    subtitle: '1 courts · Main Sports Complex',
+    subtitle: '1 court · Main Sports Complex',
     tag: 'Outdoor',
     icon: 'basketball-outline',
+  },
+  {
+    sportType: 'FOOTBALL',
+    title: 'Football',
+    subtitle: '1 turf · Main Athletic Ground',
+    tag: 'Outdoor',
+    icon: 'football-outline',
   },
   {
     sportType: 'PICKLEBALL',
@@ -63,9 +73,16 @@ export const CAMPUS_SPORTS_LIST: SportCardItem[] = [
     icon: 'tennisball',
   },
   {
+    sportType: 'TENNIS',
+    title: 'Tennis',
+    subtitle: '1 court · NMIT Tennis Arena',
+    tag: 'Outdoor',
+    icon: 'tennisball-outline',
+  },
+  {
     sportType: 'TABLE_TENNIS',
     title: 'Table Tennis',
-    subtitle: '1 courts · Indoor Stadium',
+    subtitle: '1 table · Indoor Stadium',
     tag: 'Indoor',
     icon: 'disc-outline',
   },
@@ -115,23 +132,34 @@ export function ChooseSportModal({
   const [userSearchResults, setUserSearchResults] = useState<SearchUser[]>([]);
   const [isSearchingUsers, setIsSearchingUsers] = useState(false);
 
-  // Generate next 5 calendar dates
+  const { user } = useAuthSession();
+  const roleNorm = (user?.role || '').toLowerCase();
+  const isAdmin =
+    roleNorm === 'admin' ||
+    roleNorm === 'superadmin' ||
+    roleNorm === 'campus_admin';
+
+  const [adminModalVisible, setAdminModalVisible] = useState(false);
+
+  // Generate 2 rolling calendar dates: Today and Tomorrow (Bookings allowed up to 2 days only)
   const availableDates = useMemo(() => {
     const list = [];
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 2; i++) {
       const d = new Date();
       d.setDate(d.getDate() + i);
       const dateStr = d.toISOString().slice(0, 10);
-      const label =
-        i === 0
-          ? 'Today'
-          : i === 1
-          ? 'Tomorrow'
-          : d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+      const label = i === 0 ? 'Today' : 'Tomorrow';
       list.push({ dateStr, label });
     }
     return list;
   }, []);
+
+  useEffect(() => {
+    // Keep selected date strictly within the 2 available rolling days
+    if (!availableDates.some((d) => d.dateStr === selectedDate)) {
+      setSelectedDate(availableDates[0].dateStr);
+    }
+  }, [availableDates, selectedDate]);
 
   // Fetch facilities
   const loadFacilities = async () => {
@@ -190,7 +218,21 @@ export function ChooseSportModal({
   const handleSelectSportCard = (sport: SportCardItem) => {
     setSelectedSportType(sport.sportType);
     const matchingFacility =
-      facilities.find((f) => f.sportType === sport.sportType) || facilities[0];
+      facilities.find((f) => f.sportType === sport.sportType) ||
+      facilities.find((f) => f.name.toLowerCase().includes(sport.title.toLowerCase())) ||
+      {
+        id: `fac-${sport.sportType.toLowerCase()}-1`,
+        campusId: 'nmit',
+        name: `${sport.title} Court`,
+        sportType: sport.sportType,
+        venueType: (sport.tag === 'Indoor' ? 'INDOOR' : 'OUTDOOR') as any,
+        location: sport.subtitle.split('·')[1]?.trim() || 'Campus Sports Area',
+        openingTime: "06:00:00",
+        closingTime: "22:00:00",
+        slotDurationMinutes: 60,
+        maxPlayers: sport.sportType === 'FOOTBALL' ? 14 : sport.sportType === 'BASKETBALL' ? 10 : 4,
+        isActive: 1,
+      };
     if (matchingFacility) {
       setActiveFacility(matchingFacility);
     }
@@ -273,10 +315,18 @@ export function ChooseSportModal({
         })),
       });
 
+      const bookingWithSport: SportsBooking = {
+        ...newBooking,
+        facilityName: newBooking.facilityName || activeFacility.name,
+        sportType: (newBooking.sportType || activeFacility.sportType || selectedSportType) as SportType,
+        venueType: newBooking.venueType || activeFacility.venueType,
+        location: newBooking.location || activeFacility.location,
+      };
+
       setActiveFacility(null);
       setSelectedTeammates([]);
       onClose();
-      onBookingSuccess(newBooking);
+      onBookingSuccess(bookingWithSport);
     } catch (err: any) {
       Alert.alert('Booking Error', err?.message || 'Could not confirm court booking.');
     } finally {
@@ -379,16 +429,36 @@ export function ChooseSportModal({
               <View style={styles.drawerContent} onStartShouldSetResponder={() => true}>
                 <View style={styles.drawerHandle} />
                 <View style={styles.drawerHeader}>
-                  <View>
+                  <View style={{ flex: 1 }}>
                     <Text style={styles.drawerCourtTitle}>{activeFacility.name}</Text>
                     <Text style={styles.drawerCourtSubtitle}>
                       {activeFacility.venueType} · {activeFacility.location}
                     </Text>
                   </View>
-                  <Pressable onPress={() => setActiveFacility(null)} style={styles.drawerCloseBtn}>
-                    <Ionicons name="close" size={20} color={Colors.text.secondary} />
-                  </Pressable>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    {isAdmin && (
+                      <Pressable
+                        onPress={() => setAdminModalVisible(true)}
+                        style={styles.adminActionPill}
+                      >
+                        <Ionicons name="shield-checkmark" size={13} color="#38BDF8" />
+                        <Text style={styles.adminActionPillText}>Admin</Text>
+                      </Pressable>
+                    )}
+                    <Pressable onPress={() => setActiveFacility(null)} style={styles.drawerCloseBtn}>
+                      <Ionicons name="close" size={20} color={Colors.text.secondary} />
+                    </Pressable>
+                  </View>
                 </View>
+
+                {/* 2-Day Booking Window Notice */}
+                <View style={styles.windowNoticeRow}>
+                  <Ionicons name="time-outline" size={14} color="#38BDF8" />
+                  <Text style={styles.windowNoticeText}>
+                    2-Day Booking Window: Dates automatically roll. Slots bookable up to 2 days only.
+                  </Text>
+                </View>
+
 
                 {/* Multiple Courts Switcher (e.g. Pickleball Court 1 vs Court 2) */}
                 {availableCourtsForSport.length > 1 && (
@@ -446,7 +516,40 @@ export function ChooseSportModal({
                 </ScrollView>
 
                 {/* Time Slots Grid */}
-                <Text style={styles.sectionHeading}>Available Time Slots (60 min)</Text>
+                <View style={styles.slotHeaderRow}>
+                  <Text style={styles.sectionHeading}>
+                    Available Time Slots ({activeFacility.slotDurationMinutes || 60} min)
+                  </Text>
+                  {isAdmin && (
+                    <Pressable onPress={() => setAdminModalVisible(true)} style={styles.editTimingsLink}>
+                      <Ionicons name="create-outline" size={13} color="#38BDF8" />
+                      <Text style={styles.editTimingsLinkText}>Edit Timings</Text>
+                    </Pressable>
+                  )}
+                </View>
+
+                {/* If day is completely called off */}
+                {slots.length > 0 && slots.every((s) => s.status === 'BLOCKED') && (
+                  <View style={styles.calledOffBanner}>
+                    <Ionicons name="ban" size={20} color="#EF4444" />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.calledOffBannerTitle}>Court Bookings Called Off</Text>
+                      <Text style={styles.calledOffBannerReason}>
+                        {slots.find((s) => s.blockedReason)?.blockedReason ||
+                          'Court has been called off for this day by campus administration.'}
+                      </Text>
+                      {isAdmin && (
+                        <Pressable
+                          onPress={() => setAdminModalVisible(true)}
+                          style={styles.bannerAdminBtn}
+                        >
+                          <Text style={styles.bannerAdminBtnText}>Admin: Reopen Bookings</Text>
+                        </Pressable>
+                      )}
+                    </View>
+                  </View>
+                )}
+
                 {loadingSlots ? (
                   <View style={{ paddingVertical: 30, alignItems: 'center' }}>
                     <ActivityIndicator
@@ -460,6 +563,7 @@ export function ChooseSportModal({
                       {slots.map((slot) => {
                         const isSelected = selectedSlot?.startTime === slot.startTime;
                         const isAvailable = slot.status === 'AVAILABLE';
+                        const isBlocked = slot.status === 'BLOCKED';
                         return (
                           <Pressable
                             key={slot.startTime}
@@ -470,6 +574,7 @@ export function ChooseSportModal({
                               isAvailable && styles.slotBoxAvailable,
                               isSelected && styles.slotBoxSelected,
                               !isAvailable && styles.slotBoxUnavailable,
+                              isBlocked && styles.slotBoxBlocked,
                             ]}
                           >
                             <Text
@@ -485,13 +590,17 @@ export function ChooseSportModal({
                               style={[
                                 styles.slotStatusSub,
                                 isSelected && styles.slotStatusSubSelected,
+                                isBlocked && styles.slotStatusBlocked,
                               ]}
+                              numberOfLines={1}
                             >
                               {slot.status === 'AVAILABLE'
                                 ? 'Available'
                                 : slot.status === 'BOOKED'
                                 ? 'Booked'
-                                : 'Closed'}
+                                : isBlocked
+                                ? 'Called Off'
+                                : 'Past'}
                             </Text>
                           </Pressable>
                         );
@@ -645,6 +754,23 @@ export function ChooseSportModal({
             </Pressable>
           </Modal>
         )}
+
+        {/* Admin Controls Modal for Timings & Day Call-offs */}
+        <AdminSportsControlsModal
+          visible={adminModalVisible}
+          onClose={() => setAdminModalVisible(false)}
+          token={token}
+          tenantId={tenantId}
+          initialFacilityId={activeFacility?.id}
+          onUpdated={() => {
+            loadFacilities();
+            if (activeFacility) {
+              fetchSlotAvailabilityApi(token, tenantId, activeFacility.id, selectedDate)
+                .then((res) => setSlots(res.slots || []))
+                .catch(() => {});
+            }
+          }}
+        />
       </View>
     </Modal>
   );
@@ -1137,6 +1263,98 @@ function createStyles(Colors: ColorTokens, isDark: boolean) {
       color: '#FFFFFF',
       fontSize: 14,
       fontWeight: '800',
+    },
+    adminActionPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: 'rgba(56, 189, 248, 0.12)',
+      borderWidth: 1,
+      borderColor: 'rgba(56, 189, 248, 0.35)',
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 8,
+    },
+    adminActionPillText: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: '#38BDF8',
+    },
+    windowNoticeRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      backgroundColor: 'rgba(56, 189, 248, 0.08)',
+      paddingHorizontal: 10,
+      paddingVertical: 7,
+      borderRadius: 10,
+      marginBottom: 12,
+    },
+    windowNoticeText: {
+      fontSize: 11,
+      color: '#38BDF8',
+      fontWeight: '600',
+      flex: 1,
+    },
+    slotHeaderRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 8,
+    },
+    editTimingsLink: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 3,
+      paddingVertical: 2,
+    },
+    editTimingsLinkText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: '#38BDF8',
+    },
+    calledOffBanner: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 10,
+      backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#FEF2F2',
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(239, 68, 68, 0.3)' : '#FCA5A5',
+      borderRadius: 12,
+      padding: 12,
+      marginBottom: 12,
+    },
+    calledOffBannerTitle: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: '#EF4444',
+      marginBottom: 2,
+    },
+    calledOffBannerReason: {
+      fontSize: 11,
+      color: isDark ? '#FCA5A5' : '#B91C1C',
+      lineHeight: 16,
+    },
+    bannerAdminBtn: {
+      marginTop: 6,
+      alignSelf: 'flex-start',
+      backgroundColor: '#EF4444',
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 6,
+    },
+    bannerAdminBtnText: {
+      color: '#FFFFFF',
+      fontSize: 10,
+      fontWeight: '700',
+    },
+    slotBoxBlocked: {
+      backgroundColor: isDark ? '#1C151B' : '#FEF2F2',
+      borderColor: isDark ? '#7F1D1D' : '#FECACA',
+    },
+    slotStatusBlocked: {
+      color: '#EF4444',
+      fontWeight: '700',
     },
   });
 }

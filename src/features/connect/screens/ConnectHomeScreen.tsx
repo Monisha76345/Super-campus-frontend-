@@ -19,17 +19,20 @@ import { useAppTheme } from '@/theme/app-theme';
 import { profilePhotoUri } from '@/features/profile/api/profile-api';
 import { useAuthSession } from '@/features/auth';
 import {
+  CampusClub,
   ConnectMember,
   ConnectTab,
   DirectoryRole,
   IncomingConnectionRequest,
 } from '../types/connect-types';
 import {
+  fetchClubsApi,
   fetchMembersApi,
   fetchIncomingRequestsApi,
   fetchMyConnectionsApi,
   respondConnectionRequestApi,
 } from '../api/connect-api';
+import { ClubProfileModal } from '../components/ClubProfileModal';
 
 interface ConnectHomeScreenProps {
   campusName: string;
@@ -118,10 +121,24 @@ export function ConnectHomeScreen({
     }
   }, [token, tenantId]);
 
+  const [activeClubs, setActiveClubs] = useState<CampusClub[]>([]);
+  const [selectedClub, setSelectedClub] = useState<CampusClub | null>(null);
+
+  const loadActiveClubs = useCallback(async () => {
+    if (!token) return;
+    try {
+      const data = await fetchClubsApi(token, tenantId);
+      setActiveClubs(data);
+    } catch {
+      // silent
+    }
+  }, [token, tenantId]);
+
   useEffect(() => {
     loadMembers();
     loadIncomingAlerts();
-  }, [loadMembers, loadIncomingAlerts]);
+    loadActiveClubs();
+  }, [loadMembers, loadIncomingAlerts, loadActiveClubs]);
 
   const handleRespond = async (connectionId: string, action: 'ACCEPT' | 'DECLINE') => {
     if (respondingId) return;
@@ -289,6 +306,9 @@ export function ConnectHomeScreen({
       {/* 6. Section "Active clubs" with banner teaser matching Image 1 & navigating to Clubs page */}
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Active clubs</Text>
+        <Pressable onPress={onOpenClubsFeed} hitSlop={8}>
+          <Text style={styles.sectionSeeAll}>See all ({activeClubs.length || '6'})</Text>
+        </Pressable>
       </View>
       <Pressable
         accessibilityRole="button"
@@ -303,6 +323,48 @@ export function ConnectHomeScreen({
         </View>
         <Ionicons name="chevron-forward" size={18} color={Colors.text.tertiary} style={{ marginLeft: 6 }} />
       </Pressable>
+
+      {/* Horizontal Active Clubs Preview Cards */}
+      {activeClubs.length > 0 ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.horizontalClubsScroll}
+        >
+          {activeClubs.slice(0, 6).map((c) => (
+            <Pressable
+              key={c.id}
+              accessibilityRole="button"
+              accessibilityLabel={`View ${c.name} club details`}
+              style={({ pressed }) => [styles.miniClubCard, pressed && styles.cardPressed]}
+              onPress={() => setSelectedClub(c)}
+            >
+              <View style={styles.miniClubTop}>
+                <View style={styles.miniClubIcon}>
+                  <Ionicons name="people" size={16} color={isDark ? '#38BDF8' : Colors.primary.main} />
+                </View>
+                <View style={styles.miniCategoryBadge}>
+                  <Text style={styles.miniCategoryText} numberOfLines={1}>
+                    {c.category}
+                  </Text>
+                </View>
+              </View>
+              <Text style={styles.miniClubName} numberOfLines={1}>
+                {c.name}
+              </Text>
+              <Text style={styles.miniClubDesc} numberOfLines={2}>
+                {c.description}
+              </Text>
+              <View style={styles.miniClubFooter}>
+                <Text style={styles.miniClubMembers}>
+                  {c.memberCount} members
+                </Text>
+                <Text style={styles.miniClubAction}>View Profile →</Text>
+              </View>
+            </Pressable>
+          ))}
+        </ScrollView>
+      ) : null}
 
       {/* 7. Directory Section embedded directly below the Community Card matching Image 2 & 3 */}
       <View style={styles.directoryContainer}>
@@ -638,6 +700,20 @@ export function ConnectHomeScreen({
           </>
         )}
       </View>
+
+      <ClubProfileModal
+        visible={Boolean(selectedClub)}
+        club={selectedClub}
+        token={token}
+        tenantId={tenantId}
+        onClose={() => setSelectedClub(null)}
+        onClubUpdated={(updated) => {
+          setActiveClubs((prev) =>
+            prev.map((c) => (c.id === updated.id ? { ...c, ...updated } : c)),
+          );
+          setSelectedClub((curr) => (curr?.id === updated.id ? { ...curr, ...updated } : curr));
+        }}
+      />
     </ScrollView>
   );
 }
@@ -820,6 +896,9 @@ function createStyles(Colors: ColorTokens, isDark: boolean) {
 
     // 5. Section Headers & Teaser Cards
     sectionHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
       marginTop: 18,
       marginBottom: 10,
     },
@@ -828,6 +907,81 @@ function createStyles(Colors: ColorTokens, isDark: boolean) {
       fontSize: 19,
       fontWeight: '700',
       color: Colors.text.primary,
+    },
+    sectionSeeAll: {
+      fontFamily: Typography.semiBold,
+      fontSize: 13,
+      color: isDark ? '#38BDF8' : Colors.primary.main,
+    },
+    horizontalClubsScroll: {
+      paddingBottom: 8,
+      gap: 12,
+    },
+    miniClubCard: {
+      width: 220,
+      backgroundColor: isDark ? '#0F172A' : Colors.background.surface,
+      borderRadius: 16,
+      padding: 14,
+      borderWidth: 1,
+      borderColor: isDark ? '#1E293B' : Colors.border.subtle,
+      justifyContent: 'space-between',
+    },
+    miniClubTop: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 10,
+    },
+    miniClubIcon: {
+      width: 32,
+      height: 32,
+      borderRadius: 8,
+      backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(37, 99, 235, 0.1)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    miniCategoryBadge: {
+      backgroundColor: isDark ? '#1E293B' : '#E2E8F0',
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+      borderRadius: 6,
+      maxWidth: 130,
+    },
+    miniCategoryText: {
+      fontSize: 11,
+      fontFamily: Typography.semiBold,
+      color: isDark ? '#38BDF8' : Colors.primary.main,
+    },
+    miniClubName: {
+      fontSize: 15,
+      fontFamily: Typography.bold,
+      color: Colors.text.primary,
+      marginBottom: 4,
+    },
+    miniClubDesc: {
+      fontSize: 12,
+      lineHeight: 16,
+      fontFamily: Typography.regular,
+      color: Colors.text.secondary,
+      marginBottom: 10,
+    },
+    miniClubFooter: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      borderTopWidth: 1,
+      borderTopColor: isDark ? '#1E293B' : Colors.border.subtle,
+      paddingTop: 8,
+    },
+    miniClubMembers: {
+      fontSize: 11,
+      fontFamily: Typography.medium,
+      color: Colors.text.secondary,
+    },
+    miniClubAction: {
+      fontSize: 11,
+      fontFamily: Typography.bold,
+      color: isDark ? '#38BDF8' : Colors.primary.main,
     },
     teaserCard: {
       flexDirection: 'row',

@@ -22,7 +22,7 @@ import { ColorTokens } from '@/constants/colors';
 import { useColors } from '@/theme/app-theme';
 import { useAuthSession } from '@/features/auth';
 import { outpassApi } from './api/outpass-api';
-import { OutpassItem, OutpassStatus } from './types/outpass.types';
+import { OutpassItem, OutpassStatus, PassType } from './types/outpass.types';
 
 function formatDate(isoString: string): string {
   try {
@@ -50,6 +50,7 @@ export function OutpassScreen() {
   const styles = useMemo(() => createStyles(Colors), [Colors]);
 
   // Form states
+  const [passType, setPassType] = useState<PassType>('OUTPASS');
   const [destination, setDestination] = useState('');
   const [reason, setReason] = useState('');
   const [parentPhone, setParentPhone] = useState('+91 98765 43210');
@@ -175,6 +176,31 @@ export function OutpassScreen() {
     }
   };
 
+  const handleSetPassType = (type: PassType) => {
+    if (type === 'OUTPASS') {
+      if (departureTime && returnTime) {
+        const isSameDay =
+          departureTime.getFullYear() === returnTime.getFullYear() &&
+          departureTime.getMonth() === returnTime.getMonth() &&
+          departureTime.getDate() === returnTime.getDate();
+        const isPast10Pm =
+          returnTime.getHours() > 22 ||
+          (returnTime.getHours() === 22 && returnTime.getMinutes() > 0);
+
+        if (!isSameDay || isPast10Pm) {
+          const adjusted = new Date(departureTime);
+          adjusted.setHours(21, 30, 0, 0);
+          setReturnTime(adjusted);
+          Alert.alert(
+            'Outpass Schedule Adjusted',
+            'Outpasses require returning on the same day before 10:00 PM. Return time adjusted to 09:30 PM.'
+          );
+        }
+      }
+    }
+    setPassType(type);
+  };
+
   const handleSubmit = async () => {
     if (!isHostelite) {
       Alert.alert('Hostel Resident Only', 'Only registered hostel residents can submit an outpass.');
@@ -201,9 +227,25 @@ export function OutpassScreen() {
       return;
     }
 
+    // Enforce 10:00 PM and same day rule:
+    // If return time is past 10:00 PM or on another day, it is automatically classified as LEAVE
+    const isSameDay =
+      departureTime.getFullYear() === returnTime.getFullYear() &&
+      departureTime.getMonth() === returnTime.getMonth() &&
+      departureTime.getDate() === returnTime.getDate();
+    const isPast10Pm =
+      returnTime.getHours() > 22 ||
+      (returnTime.getHours() === 22 && returnTime.getMinutes() > 0);
+
+    let effectivePassType = passType;
+    if (!isSameDay || isPast10Pm) {
+      effectivePassType = 'LEAVE';
+    }
+
     try {
       setSubmitting(true);
       const payload = {
+        passType: effectivePassType,
         destination: destination.trim(),
         reason: reason.trim(),
         departureTime: departureTime.toISOString(),
@@ -226,9 +268,15 @@ export function OutpassScreen() {
       setReason('');
       setDepartureTime(null);
       setReturnTime(null);
-      Alert.alert('Success', 'Outpass request submitted successfully.');
+      setPassType('OUTPASS');
+      Alert.alert(
+        'Success',
+        effectivePassType === 'LEAVE'
+          ? 'Leave application submitted successfully for hostel review.'
+          : 'Outpass request submitted successfully.'
+      );
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Could not submit outpass request';
+      const message = err instanceof Error ? err.message : 'Could not submit request';
       Alert.alert('Submission Failed', message);
     } finally {
       setSubmitting(false);
@@ -237,7 +285,11 @@ export function OutpassScreen() {
 
   const openPicker = (target: 'departure' | 'return') => {
     const current = target === 'departure' ? departureTime : returnTime;
-    const initial = current || new Date();
+    let initial = current || (target === 'return' && departureTime ? new Date(departureTime) : new Date());
+    if (target === 'return' && !current && departureTime && passType === 'OUTPASS') {
+      initial = new Date(departureTime);
+      initial.setHours(21, 0, 0, 0);
+    }
     setCalYear(initial.getFullYear());
     setCalMonth(initial.getMonth());
     setCalDay(initial.getDate());
@@ -251,18 +303,64 @@ export function OutpassScreen() {
     const chosen = new Date(calYear, calMonth, calDay, calHour, calMinute, 0);
     if (pickerTarget === 'departure') {
       setDepartureTime(chosen);
+      if (passType === 'OUTPASS') {
+        if (!returnTime || returnTime <= chosen) {
+          const defReturn = new Date(chosen);
+          defReturn.setHours(21, 30, 0, 0);
+          if (defReturn <= chosen) {
+            defReturn.setHours(21, 59, 0, 0);
+          }
+          setReturnTime(defReturn);
+        }
+      }
     } else if (pickerTarget === 'return') {
+      const isSameDay = departureTime
+        ? departureTime.getFullYear() === chosen.getFullYear() &&
+          departureTime.getMonth() === chosen.getMonth() &&
+          departureTime.getDate() === chosen.getDate()
+        : true;
+      const isPast10Pm =
+        chosen.getHours() > 22 ||
+        (chosen.getHours() === 22 && chosen.getMinutes() > 0);
+
+      if (!isSameDay || isPast10Pm) {
+        if (passType === 'OUTPASS') {
+          setPassType('LEAVE');
+          Alert.alert(
+            'Converted to Leave',
+            'Return time is after 10:00 PM (or overnight). Outpasses must return before 10:00 PM on the same day, so this request is now classified as a Leave application.'
+          );
+        }
+      }
       setReturnTime(chosen);
     }
     setPickerTarget(null);
   };
 
   const applyPickerSelection = (offsetHours: number) => {
-    const selected = new Date();
-    selected.setHours(selected.getHours() + offsetHours);
+    const base = pickerTarget === 'return' && departureTime ? new Date(departureTime) : new Date();
+    const selected = new Date(base.getTime() + offsetHours * 3600 * 1000);
     if (pickerTarget === 'departure') {
       setDepartureTime(selected);
     } else if (pickerTarget === 'return') {
+      const isSameDay = departureTime
+        ? departureTime.getFullYear() === selected.getFullYear() &&
+          departureTime.getMonth() === selected.getMonth() &&
+          departureTime.getDate() === selected.getDate()
+        : true;
+      const isPast10Pm =
+        selected.getHours() > 22 ||
+        (selected.getHours() === 22 && selected.getMinutes() > 0);
+
+      if (!isSameDay || isPast10Pm) {
+        if (passType === 'OUTPASS') {
+          setPassType('LEAVE');
+          Alert.alert(
+            'Converted to Leave',
+            'Return time is after 10:00 PM (or overnight). This request is automatically classified as a Leave application.'
+          );
+        }
+      }
       setReturnTime(selected);
     }
     setPickerTarget(null);
@@ -388,14 +486,86 @@ export function OutpassScreen() {
           ) : (
             /* Student View: Request an Outpass Form */
             <View style={styles.formCard}>
-              <Text style={styles.formTitle}>Request an outpass</Text>
-              <Text style={styles.formSubtitle}>Hostel staff will review your request.</Text>
+              <Text style={styles.formTitle}>Request Outpass or Leave</Text>
+              <Text style={styles.formSubtitle}>Hostel administration will review your request.</Text>
+
+              {/* Pass Type Selector: Outpass vs Leave */}
+              <View style={styles.passTypeContainer}>
+                <Text style={styles.passTypeSectionLabel}>SELECT PASS TYPE</Text>
+                <View style={styles.passTypeSegmentRow}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Select Outpass"
+                    onPress={() => handleSetPassType('OUTPASS')}
+                    style={[
+                      styles.passTypeSegmentBtn,
+                      passType === 'OUTPASS' && styles.passTypeSegmentBtnActive,
+                    ]}>
+                    <Ionicons
+                      name="time-outline"
+                      size={15}
+                      color={passType === 'OUTPASS' ? '#38BDF8' : Colors.text.secondary}
+                    />
+                    <Text
+                      style={[
+                        styles.passTypeSegmentText,
+                        passType === 'OUTPASS' && styles.passTypeSegmentTextActive,
+                      ]}>
+                      Outpass (Day Pass)
+                    </Text>
+                  </Pressable>
+
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Select Leave"
+                    onPress={() => handleSetPassType('LEAVE')}
+                    style={[
+                      styles.passTypeSegmentBtn,
+                      passType === 'LEAVE' && styles.passTypeSegmentBtnActiveLeave,
+                    ]}>
+                    <Ionicons
+                      name="bed-outline"
+                      size={15}
+                      color={passType === 'LEAVE' ? '#A78BFA' : Colors.text.secondary}
+                    />
+                    <Text
+                      style={[
+                        styles.passTypeSegmentText,
+                        passType === 'LEAVE' && styles.passTypeSegmentTextActiveLeave,
+                      ]}>
+                      Leave (Overnight)
+                    </Text>
+                  </Pressable>
+                </View>
+
+                {/* Explanatory banner for selected pass type */}
+                <View
+                  style={[
+                    styles.passTypeBanner,
+                    passType === 'LEAVE' && styles.passTypeBannerLeave,
+                  ]}>
+                  <Ionicons
+                    name={passType === 'OUTPASS' ? 'alert-circle-outline' : 'moon-outline'}
+                    size={14}
+                    color={passType === 'OUTPASS' ? '#38BDF8' : '#A78BFA'}
+                  />
+                  <Text
+                    style={[
+                      styles.passTypeBannerText,
+                      passType === 'LEAVE' && styles.passTypeBannerTextLeave,
+                    ]}>
+                    {passType === 'OUTPASS'
+                      ? 'Outpass rule: Must return today before 10:00 PM. Returns after 10:00 PM are automatically treated as Leave.'
+                      : 'Leave pass: For overnight stay, multi-day absence, or returning past 10:00 PM.'}
+                  </Text>
+                </View>
+              </View>
 
               {/* Destination Field */}
               <View style={styles.inputWrapper}>
                 <TextInput
                   style={styles.input}
-                  placeholder="Destination"
+                  placeholder="Destination (e.g. Forum Mall, City Center, Home)"
                   placeholderTextColor={Colors.text.tertiary}
                   value={destination}
                   onChangeText={setDestination}
@@ -406,23 +576,28 @@ export function OutpassScreen() {
               <View style={styles.inputWrapper}>
                 <TextInput
                   style={styles.input}
-                  placeholder="Reason"
+                  placeholder="Reason for leaving campus"
                   placeholderTextColor={Colors.text.tertiary}
                   value={reason}
                   onChangeText={setReason}
                 />
               </View>
 
-              {/* Parent Contact Number for SMS Alerts */}
-              <View style={styles.inputWrapper}>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Parent's Mobile for Gate SMS"
-                  placeholderTextColor={Colors.text.tertiary}
-                  value={parentPhone}
-                  onChangeText={setParentPhone}
-                  keyboardType="phone-pad"
-                />
+              {/* Parent Contact Number (Locked Official Record - Non-editable by students) */}
+              <View style={styles.lockedParentContainer}>
+                <View style={styles.lockedParentHeader}>
+                  <View style={styles.lockedParentLabelGroup}>
+                    <Ionicons name="lock-closed" size={13} color="#F59E0B" />
+                    <Text style={styles.lockedParentLabel}>Parent Mobile Number (Official Record)</Text>
+                  </View>
+                  <View style={styles.lockedBadge}>
+                    <Text style={styles.lockedBadgeText}>NON-EDITABLE</Text>
+                  </View>
+                </View>
+                <Text style={styles.lockedParentValue}>{parentPhone}</Text>
+                <Text style={styles.lockedParentHint}>
+                  Official hostel record linked to student admission. Cannot be modified by students. Automatic gate exit & return SMS notifications will be dispatched here.
+                </Text>
               </View>
 
               {/* Departure Time */}
@@ -517,9 +692,33 @@ export function OutpassScreen() {
                         ) : null}
                       </View>
                     )}
-                    <Text style={styles.cardDestination} numberOfLines={1}>
-                      {item.destination}
-                    </Text>
+                    <View style={styles.cardTitleTypeRow}>
+                      <View
+                        style={[
+                          styles.passTypePill,
+                          item.passType === 'LEAVE'
+                            ? styles.passTypePillLeave
+                            : styles.passTypePillOutpass,
+                        ]}>
+                        <Ionicons
+                          name={item.passType === 'LEAVE' ? 'bed-outline' : 'time-outline'}
+                          size={11}
+                          color={item.passType === 'LEAVE' ? '#A78BFA' : '#38BDF8'}
+                        />
+                        <Text
+                          style={[
+                            styles.passTypePillText,
+                            item.passType === 'LEAVE'
+                              ? styles.passTypePillTextLeave
+                              : styles.passTypePillTextOutpass,
+                          ]}>
+                          {item.passType === 'LEAVE' ? 'LEAVE' : 'OUTPASS'}
+                        </Text>
+                      </View>
+                      <Text style={styles.cardDestination} numberOfLines={1}>
+                        {item.destination}
+                      </Text>
+                    </View>
                   </View>
                   <View style={[styles.badge, badge.container]}>
                     <Text style={[styles.badgeText, badge.text]}>{badge.label}</Text>
@@ -963,6 +1162,20 @@ export function OutpassScreen() {
             {/* Pass Validity Details */}
             <View style={styles.qrMetaGrid}>
               <View style={styles.qrMetaItem}>
+                <Text style={styles.qrMetaLabel}>PASS TYPE</Text>
+                <Text
+                  style={[
+                    styles.qrMetaValue,
+                    {
+                      color:
+                        activeQrPass?.passType === 'LEAVE' ? '#A78BFA' : '#38BDF8',
+                    },
+                  ]}
+                  numberOfLines={1}>
+                  {activeQrPass?.passType === 'LEAVE' ? 'Hostel Leave' : 'Day Outpass'}
+                </Text>
+              </View>
+              <View style={styles.qrMetaItem}>
                 <Text style={styles.qrMetaLabel}>VALID FROM</Text>
                 <Text style={styles.qrMetaValue} numberOfLines={1}>
                   {activeQrPass ? formatDate(activeQrPass.departureTime) : ''}
@@ -995,37 +1208,8 @@ export function OutpassScreen() {
             ) : null}
 
             <Text style={styles.qrNotice}>
-              Show this QR code to the hostel security guard at the main gate for departure and entry check.
+              Show this QR code to the hostel security guard at the main gate for exit and entry verification.
             </Text>
-
-            {/* Checkpoint Simulator / Gate Scan Action */}
-            {activeQrPass && (activeQrPass.status === 'APPROVED' || activeQrPass.status === 'ACTIVE') && (
-              <Pressable
-                disabled={actionBusyId === activeQrPass.id}
-                onPress={() => handleGateScan(activeQrPass)}
-                style={({ pressed }) => [
-                  styles.simulateScanBtn,
-                  activeQrPass.status === 'ACTIVE' && { backgroundColor: '#059669' },
-                  pressed && { opacity: 0.8 },
-                ]}>
-                {actionBusyId === activeQrPass.id ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <>
-                    <Ionicons
-                      name={activeQrPass.status === 'ACTIVE' ? 'log-in-outline' : 'log-out-outline'}
-                      size={16}
-                      color="#FFFFFF"
-                    />
-                    <Text style={styles.simulateScanBtnText}>
-                      {activeQrPass.status === 'ACTIVE'
-                        ? 'Simulate Gate Entry Scan (SMS Parent)'
-                        : 'Simulate Gate Exit Scan (SMS Parent)'}
-                    </Text>
-                  </>
-                )}
-              </Pressable>
-            )}
 
             <Pressable onPress={() => setActiveQrPass(null)} style={styles.doneBtn}>
               <Text style={styles.doneBtnText}>Close Pass</Text>
@@ -1978,5 +2162,159 @@ function createStyles(Colors: ColorTokens) {
       fontSize: 13,
       color: '#FFFFFF',
     },
+    passTypeContainer: {
+      marginBottom: 16,
+    },
+    passTypeSectionLabel: {
+      fontFamily: Typography.bold,
+      fontSize: 11,
+      letterSpacing: 0.8,
+      color: Colors.text.tertiary,
+      marginBottom: 8,
+    },
+    passTypeSegmentRow: {
+      flexDirection: 'row',
+      backgroundColor: Colors.background.elevated,
+      borderRadius: 12,
+      padding: 4,
+      gap: 6,
+    },
+    passTypeSegmentBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      paddingVertical: 10,
+      borderRadius: 8,
+    },
+    passTypeSegmentBtnActive: {
+      backgroundColor: 'rgba(56, 189, 248, 0.15)',
+      borderWidth: 1,
+      borderColor: '#38BDF8',
+    },
+    passTypeSegmentBtnActiveLeave: {
+      backgroundColor: 'rgba(167, 139, 250, 0.15)',
+      borderWidth: 1,
+      borderColor: '#A78BFA',
+    },
+    passTypeSegmentText: {
+      fontFamily: Typography.semiBold,
+      fontSize: 12,
+      color: Colors.text.secondary,
+    },
+    passTypeSegmentTextActive: {
+      color: '#38BDF8',
+      fontWeight: '700',
+    },
+    passTypeSegmentTextActiveLeave: {
+      color: '#A78BFA',
+      fontWeight: '700',
+    },
+    passTypeBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      backgroundColor: 'rgba(56, 189, 248, 0.08)',
+      padding: 10,
+      borderRadius: 8,
+      marginTop: 8,
+    },
+    passTypeBannerLeave: {
+      backgroundColor: 'rgba(167, 139, 250, 0.08)',
+    },
+    passTypeBannerText: {
+      fontFamily: Typography.medium,
+      fontSize: 11,
+      color: '#38BDF8',
+      flex: 1,
+    },
+    passTypeBannerTextLeave: {
+      color: '#A78BFA',
+    },
+    lockedParentContainer: {
+      backgroundColor: Colors.background.elevated,
+      borderRadius: 12,
+      padding: 14,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: Colors.border.subtle,
+    },
+    lockedParentHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 6,
+    },
+    lockedParentLabelGroup: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    lockedParentLabel: {
+      fontFamily: Typography.semiBold,
+      fontSize: 11,
+      color: Colors.text.tertiary,
+      letterSpacing: 0.5,
+    },
+    lockedBadge: {
+      backgroundColor: 'rgba(148, 163, 184, 0.15)',
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 4,
+    },
+    lockedBadgeText: {
+      fontFamily: Typography.bold,
+      fontSize: 9,
+      color: '#94A3B8',
+    },
+    lockedParentValue: {
+      fontFamily: Typography.bold,
+      fontSize: 15,
+      color: Colors.text.primary,
+      marginBottom: 4,
+    },
+    lockedParentHint: {
+      fontFamily: Typography.regular,
+      fontSize: 11,
+      color: Colors.text.secondary,
+      lineHeight: 15,
+    },
+    cardTitleTypeRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      flexWrap: 'wrap',
+    },
+    passTypePill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 6,
+    },
+    passTypePillOutpass: {
+      backgroundColor: 'rgba(56, 189, 248, 0.15)',
+      borderWidth: 1,
+      borderColor: 'rgba(56, 189, 248, 0.4)',
+    },
+    passTypePillLeave: {
+      backgroundColor: 'rgba(167, 139, 250, 0.15)',
+      borderWidth: 1,
+      borderColor: 'rgba(167, 139, 250, 0.4)',
+    },
+    passTypePillText: {
+      fontFamily: Typography.bold,
+      fontSize: 9,
+      letterSpacing: 0.5,
+    },
+    passTypePillTextOutpass: {
+      color: '#38BDF8',
+    },
+    passTypePillTextLeave: {
+      color: '#A78BFA',
+    },
   });
 }
+

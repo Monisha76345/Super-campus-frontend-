@@ -3,9 +3,9 @@ import { useMemo } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ColorTokens } from '@/constants/colors';
-import { useColors } from '@/theme/app-theme';
 import { Typography } from '@/constants/fonts';
 import { initials } from '@/features/auth/profile';
+import { useColors } from '@/theme/app-theme';
 
 interface HomeHeaderProps {
   campusName: string;
@@ -88,15 +88,19 @@ function createStyles(Colors: ColorTokens) {
     gap: 10,
   },
   avatarRing: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     padding: 2,
-    backgroundColor: 'rgba(79, 70, 229, 0.25)',
+    backgroundColor: 'rgba(99, 102, 241, 0.28)',
     borderWidth: 1.5,
-    borderColor: '#6366F1',
+    borderColor: '#818CF8',
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#6366F1',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.45,
+    shadowRadius: 8,
   },
   avatarInner: {
     width: '100%',
@@ -152,9 +156,9 @@ function createStyles(Colors: ColorTokens) {
     backgroundColor: Colors.background.surface,
     borderWidth: 1,
     borderColor: Colors.border.subtle,
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
     shadowColor: '#0F172A',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.04,
@@ -175,20 +179,21 @@ function createStyles(Colors: ColorTokens) {
     maxWidth: 95,
   },
   bellButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: Colors.background.surface,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(30, 41, 59, 0.55)',
     borderWidth: 1,
-    borderColor: Colors.border.subtle,
+    borderColor: 'rgba(147, 197, 253, 0.22)',
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 1,
+    shadowColor: '#38BDF8',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 2,
+    overflow: 'hidden',
   },
   notificationDot: {
     position: 'absolute',

@@ -63,7 +63,16 @@
           "imageWidth": 76
         }
       ],
-      "expo-video"
+      "expo-video",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#2563EB",
+          "sounds": [],
+          "defaultChannel": "campus-alerts"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

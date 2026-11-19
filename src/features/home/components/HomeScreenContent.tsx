@@ -9,6 +9,7 @@ import { useAuthSession } from '@/features/auth';
 import { outpassApi } from '@/features/campus/api/outpass-api';
 import { openTab } from '@/features/campus/navigation';
 import { OutpassItem } from '@/features/campus/types/outpass.types';
+import { useUnreadNotificationCount } from '@/features/notifications/hooks/useUnreadNotificationCount';
 import { profileApi } from '@/features/profile/api/profile-api';
 import { CampusProfile } from '@/features/profile/types';
 import { useColors } from '@/theme/app-theme';
@@ -43,6 +44,7 @@ export function HomeScreenContent() {
   const styles = useMemo(() => createStyles(Colors), [Colors]);
   const router = useRouter();
   const { user } = useAuthSession();
+  const { count: unreadCount, refresh: refreshUnread } = useUnreadNotificationCount();
   const [profile, setProfile] = useState<CampusProfile | null>(null);
   const [activeOutpass, setActiveOutpass] = useState<OutpassItem | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -86,6 +88,7 @@ export function HomeScreenContent() {
 
   const onRefresh = async () => {
     setRefreshing(true);
+    void refreshUnread();
     await fetchData();
     setRefreshing(false);
   };
@@ -127,6 +130,7 @@ export function HomeScreenContent() {
         <HomeHeader
           campusName={campusDisplayName}
           userName={displayName}
+          unreadCount={unreadCount}
           onProfilePress={() => router.push('/profile')}
           onNotificationPress={() => router.push('/notifications')}
         />
@@ -151,7 +155,7 @@ export function HomeScreenContent() {
 
             <Text style={styles.superAdminTitle}>Campus Directory & CSV Onboarding</Text>
             <Text style={styles.superAdminSubtitle}>
-              Batch onboard students, faculties, and administrators directly into campus databases with automated schema validation.
+              Download the Excel template (yellow headers), fill rows manually, then upload — same as CDRMS.
             </Text>
 
             <Pressable
@@ -161,8 +165,8 @@ export function HomeScreenContent() {
                 <Ionicons name="cloud-upload-outline" size={18} color="#080B11" />
               </View>
               <View style={styles.csvButtonTextWrapper}>
-                <Text style={styles.csvButtonTitle}>Import Directory CSV</Text>
-                <Text style={styles.csvButtonSub}>Upload batch CSV spreadsheet to tenant database</Text>
+                <Text style={styles.csvButtonTitle}>Import Directory Excel</Text>
+                <Text style={styles.csvButtonSub}>Download template → fill → upload to campus DB</Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color="#38BDF8" />
             </Pressable>

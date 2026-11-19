@@ -10,6 +10,7 @@ import { useColors } from '@/theme/app-theme';
 interface HomeHeaderProps {
   campusName: string;
   userName: string;
+  unreadCount?: number;
   onNotificationPress?: () => void;
   onCampusPress?: () => void;
   onProfilePress?: () => void;
@@ -18,6 +19,7 @@ interface HomeHeaderProps {
 export function HomeHeader({
   campusName,
   userName,
+  unreadCount = 0,
   onNotificationPress,
   onCampusPress,
   onProfilePress,
@@ -62,11 +64,14 @@ export function HomeHeader({
         <Pressable
           onPress={
             onNotificationPress ||
-            (() => Alert.alert('Notifications', 'You are all caught up! 2 campus alerts active.'))
+            (() => Alert.alert('Notifications', 'You are all caught up!'))
           }
-          style={({ pressed }) => [styles.bellButton, pressed && styles.pressed]}>
+          style={({ pressed }) => [styles.bellButton, pressed && styles.pressed]}
+          accessibilityLabel={
+            unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'
+          }>
           <Ionicons name="notifications-outline" size={20} color={Colors.text.primary} />
-          <View style={styles.notificationDot} />
+          {unreadCount > 0 ? <View style={styles.notificationDot} /> : null}
         </Pressable>
       </View>
     </View>

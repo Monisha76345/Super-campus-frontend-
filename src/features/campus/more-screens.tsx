@@ -8,14 +8,15 @@ import { useColors } from '@/theme/app-theme';
 import { Typography } from '@/constants/fonts';
 import { useAuthSession } from '@/features/auth';
 import {
-  fetchIncomingRequestsApi,
-  respondConnectionRequestApi,
-} from '@/features/connect/api/connect-api';
-import { IncomingConnectionRequest } from '@/features/connect/types/connect-types';
-import { outpassApi } from './api/outpass-api';
-import { OutpassItem } from './types/outpass.types';
-import { fetchMySportsBookingsApi } from './sports-api';
-import { SportsBooking } from './sports-types';
+  AppNotificationItem,
+  notificationApi,
+} from '@/features/notifications/api/notification-api';
+import {
+  categoryAccent,
+  categoryIcon,
+  formatRelativeTime,
+  routeFromNotificationData,
+} from '@/features/notifications/utils/notification-routing';
 
 import { CampusCard } from './components/CampusCard';
 import { CampusScreen } from './components/CampusScreen';
@@ -98,69 +99,82 @@ export function NotificationsScreen() {
   const token = user?.token || '';
   const tenantId = user?.tenantId || 'nmit';
 
-  const [requests, setRequests] = useState<IncomingConnectionRequest[]>([]);
-  const [outpasses, setOutpasses] = useState<OutpassItem[]>([]);
-  const [sportsBookings, setSportsBookings] = useState<SportsBooking[]>([]);
+  const [items, setItems] = useState<AppNotificationItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [respondingId, setRespondingId] = useState<string | null>(null);
+  const [markingAll, setMarkingAll] = useState(false);
 
-  const loadAll = useCallback(async () => {
+  const loadInbox = useCallback(async () => {
     if (!token) {
       setLoading(false);
+      setItems([]);
       return;
     }
     try {
-      const [reqRes, outpassRes, sportsRes] = await Promise.allSettled([
-        fetchIncomingRequestsApi(token, tenantId),
-        outpassApi.getMyRequests({ token, tenantId }),
-        fetchMySportsBookingsApi(token, tenantId),
-      ]);
-
-      if (reqRes.status === 'fulfilled') {
-        setRequests(reqRes.value || []);
-      }
-      if (outpassRes.status === 'fulfilled') {
-        const active = (outpassRes.value || []).filter(
-          (o) => o.status === 'PENDING' || o.status === 'APPROVED' || o.status === 'ACTIVE'
-        );
-        setOutpasses(active);
-      }
-      if (sportsRes.status === 'fulfilled') {
-        const activeSports = (sportsRes.value || []).filter(
-          (b) => b.status === 'CONFIRMED' || !b.status
-        );
-        setSportsBookings(activeSports);
-      }
+      const data = await notificationApi.list({ token, tenantId }, 50, 0);
+      setItems(data || []);
     } catch {
-      // silent
+      // keep previous
     } finally {
       setLoading(false);
     }
   }, [token, tenantId]);
 
   useEffect(() => {
-    loadAll();
-  }, [loadAll]);
+    loadInbox();
+  }, [loadInbox]);
 
-  const handleRespond = async (connectionId: string, action: 'ACCEPT' | 'DECLINE') => {
-    if (respondingId) return;
-    setRespondingId(connectionId);
+  const handleOpen = async (item: AppNotificationItem) => {
+    if (!item.isRead && token) {
+      try {
+        await notificationApi.markRead({ token, tenantId }, item.id);
+        setItems((prev) =>
+          prev.map((n) => (n.id === item.id ? { ...n, isRead: true } : n)),
+        );
+      } catch {
+        // still navigate
+      }
+    }
+    routeFromNotificationData(router, item.data);
+  };
+
+  const handleMarkAll = async () => {
+    if (!token || markingAll) return;
+    setMarkingAll(true);
     try {
-      await respondConnectionRequestApi(token, tenantId, connectionId, action);
-      await loadAll();
-    } catch (err) {
-      console.warn('Failed to respond to request:', err);
+      await notificationApi.markAllRead({ token, tenantId });
+      setItems((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    } catch {
+      // silent
     } finally {
-      setRespondingId(null);
+      setMarkingAll(false);
     }
   };
 
-  const hasAnyNotifications =
-    requests.length > 0 || outpasses.length > 0 || sportsBookings.length > 0;
+  const unread = items.filter((n) => !n.isRead).length;
 
   return (
-    <CampusScreen title="Notifications" subtitle="Campus alerts and connection requests." activeTab="profile">
-      <Note>Stay updated with real-time campus events, class schedules, and peer connection requests.</Note>
+    <CampusScreen title="Notifications" subtitle="Campus alerts across every module." activeTab="profile">
+      <Note>Messages, outpass, sports, projects, marketplace, and connection updates land here.</Note>
+
+      {!loading && items.length > 0 && (
+        <View style={styles.notifHeaderRow}>
+          <Text style={styles.notifCountBadge}>{unread} unread</Text>
+          <Pressable
+            onPress={handleMarkAll}
+            disabled={markingAll || unread === 0}
+            style={({ pressed }) => [
+              styles.notifDeclineBtn,
+              (markingAll || unread === 0) && { opacity: 0.5 },
+              pressed && styles.btnPressed,
+            ]}>
+            {markingAll ? (
+              <ActivityIndicator size="small" color={Colors.text.secondary} />
+            ) : (
+              <Text style={styles.notifDeclineText}>Mark all read</Text>
+            )}
+          </Pressable>
+        </View>
+      )}
 
       {loading && (
         <View style={{ paddingVertical: 32, alignItems: 'center' }}>
@@ -168,110 +182,52 @@ export function NotificationsScreen() {
         </View>
       )}
 
-      {!loading && !hasAnyNotifications && (
+      {!loading && items.length === 0 && (
         <View style={styles.emptyCard}>
           <View style={styles.emptyIconBox}>
             <Ionicons name="notifications-outline" size={26} color="#38BDF8" />
           </View>
           <Text style={styles.emptyTitle}>All caught up!</Text>
           <Text style={styles.emptySubtitle}>
-            No pending alerts, gate passes, or connection requests.
+            New campus alerts will show up here as soon as something needs your attention.
           </Text>
         </View>
       )}
 
-      {/* Dynamic Incoming Connection Requests */}
-      {!loading && requests.length > 0 && (
-        <View style={styles.notifRequestsBox}>
-          <View style={styles.notifHeaderRow}>
-            <View style={styles.notifHeaderBadge}>
-              <Ionicons name="people" size={16} color="#38BDF8" />
-              <Text style={styles.notifHeaderTitle}>Connection Requests</Text>
-            </View>
-            <Text style={styles.notifCountBadge}>{requests.length} new</Text>
-          </View>
-
-          {requests.map((req) => (
-            <View key={req.connectionId} style={styles.notifReqCard}>
+      {!loading &&
+        items.map((item) => {
+          const accent = categoryAccent(item.category);
+          return (
+            <Pressable
+              key={item.id}
+              onPress={() => void handleOpen(item)}
+              style={({ pressed }) => [
+                styles.notifReqCard,
+                !item.isRead && { borderColor: accent + '66' },
+                pressed && styles.btnPressed,
+              ]}>
               <View style={styles.notifReqTop}>
-                <View style={styles.notifAvatar}>
-                  <Text style={styles.notifAvatarText}>{req.initials}</Text>
+                <View style={[styles.notifAvatar, { backgroundColor: accent + '22' }]}>
+                  <Ionicons name={categoryIcon(item.category) as any} size={18} color={accent} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.notifReqName}>{req.fullName}</Text>
-                  <Text style={styles.notifReqDetail}>
-                    {[req.role, req.department, req.batch].filter(Boolean).join(' · ')}
+                  <View style={styles.notifHeaderRow}>
+                    <Text style={styles.notifReqName} numberOfLines={1}>
+                      {item.title}
+                    </Text>
+                    {!item.isRead ? <View style={styles.unreadDot} /> : null}
+                  </View>
+                  <Text style={styles.notifReqDetail} numberOfLines={2}>
+                    {item.body}
                   </Text>
-                  <Text style={styles.notifReqHandle}>{req.handle}</Text>
+                  <Text style={styles.notifReqHandle}>
+                    {item.category} · {formatRelativeTime(item.createdAt)}
+                  </Text>
                 </View>
               </View>
-
-              <View style={styles.notifBtnRow}>
-                <Pressable
-                  onPress={() => handleRespond(req.connectionId, 'ACCEPT')}
-                  disabled={respondingId === req.connectionId}
-                  style={({ pressed }) => [
-                    styles.notifAcceptBtn,
-                    respondingId === req.connectionId && { opacity: 0.8 },
-                    pressed && styles.btnPressed,
-                  ]}>
-                  {respondingId === req.connectionId ? (
-                    <ActivityIndicator size="small" color="#080B11" />
-                  ) : (
-                    <>
-                      <Ionicons name="checkmark" size={15} color="#080B11" />
-                      <Text style={styles.notifAcceptText}>Accept</Text>
-                    </>
-                  )}
-                </Pressable>
-                <Pressable
-                  onPress={() => handleRespond(req.connectionId, 'DECLINE')}
-                  disabled={respondingId === req.connectionId}
-                  style={({ pressed }) => [
-                    styles.notifDeclineBtn,
-                    respondingId === req.connectionId && { opacity: 0.8 },
-                    pressed && styles.btnPressed,
-                  ]}>
-                  <Ionicons name="close" size={15} color={Colors.text.secondary} />
-                  <Text style={styles.notifDeclineText}>Decline</Text>
-                </Pressable>
-              </View>
-            </View>
-          ))}
-        </View>
-      )}
-
-      {/* Dynamic Active Outpass Requests */}
-      {!loading &&
-        outpasses.map((op) => {
-          const isActive = op.status === 'ACTIVE' || op.status === 'APPROVED';
-          const returnFormatted = op.returnTime ? op.returnTime.replace('T', ' ').slice(0, 16) : '';
-          return (
-            <CampusCard
-              key={`outpass-${op.id}`}
-              icon="exit"
-              title={isActive ? 'Outpass is active' : 'Outpass pending approval'}
-              detail={`${op.destination || op.reason}${returnFormatted ? ' · Return: ' + returnFormatted : ''}`}
-              meta={isActive ? 'Gate' : 'Pending'}
-              accent={isActive ? '#34D399' : '#F59E0B'}
-              onPress={() => openService(router, 'outpass')}
-            />
+            </Pressable>
           );
         })}
-
-      {/* Dynamic Upcoming Sports Bookings */}
-      {!loading &&
-        sportsBookings.map((sb) => (
-          <CampusCard
-            key={`sports-${sb.id}`}
-            icon="basketball"
-            title={`Upcoming: ${sb.facilityName || 'Sports Facility'}`}
-            detail={`${sb.bookingDate || ''} · ${sb.startTime?.slice(0, 5) || ''} - ${sb.endTime?.slice(0, 5) || ''}`}
-            meta="Sports"
-            accent="#A78BFA"
-            onPress={() => openService(router, 'sports')}
-          />
-        ))}
     </CampusScreen>
   );
 }
@@ -393,6 +349,13 @@ function createStyles(Colors: ColorTokens) {
     fontFamily: Typography.medium,
     fontSize: 12,
     color: '#818CF8',
+  },
+  unreadDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#38BDF8',
+    marginLeft: 8,
   },
   notifBtnRow: {
     flexDirection: 'row',

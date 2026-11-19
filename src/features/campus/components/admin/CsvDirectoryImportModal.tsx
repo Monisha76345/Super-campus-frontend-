@@ -2,7 +2,6 @@ import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import React, { useState } from 'react';
 import {
-  Alert,
   Modal,
   Pressable,
   ScrollView,
@@ -11,24 +10,22 @@ import {
   View,
 } from 'react-native';
 
-import { AppLogo, AppMessageModal, AppMessageType, LogoLoader } from '@/components/ui';
+import { AppMessageModal, AppMessageType, LogoLoader } from '@/components/ui';
 import { Typography } from '@/constants/fonts';
 import { useAuthSession } from '@/features/auth/session/AuthSessionProvider';
 import { useColors } from '@/theme/app-theme';
 
-import { ImportBatchResult, uploadDirectoryCsvApi } from '../../api/user-import-api';
+import {
+  DIRECTORY_TEMPLATE_HEADERS,
+  downloadDirectoryCsvTemplateApi,
+  ImportBatchResult,
+  uploadDirectoryCsvApi,
+} from '../../api/user-import-api';
 
 interface CsvDirectoryImportModalProps {
   visible: boolean;
   onClose: () => void;
 }
-
-const SAMPLE_CSV_TEMPLATE = `usn,fullName,collegeEmail,password,department,batch,program,hostelite,role,mobile
-1NT22CS001,Aarav Patel,1nt22cs001.aarav@nmit.ac.in,CollegePass@123,CSE,2022-2026,B.Tech,yes,student,9876543210
-1NT22CS002,Sneha Rao,1nt22cs002.sneha@nmit.ac.in,CollegePass@123,CSE,2022-2026,B.Tech,no,student,9876543211
-1NT22EC015,Rohan Sharma,1nt22ec015.rohan@nmit.ac.in,CollegePass@123,ECE,2022-2026,B.Tech,yes,student,9876543212
-1NT20ME040,Vikram Singh,1nt20me040.vikram@nmit.ac.in,CollegePass@123,ME,2020-2024,B.Tech,no,alumni,9876543213
-FAC001,Dr. Ananya Murthy,ananya.murthy@nmit.ac.in,FacultyPass@123,CSE,2024,Faculty,no,faculty,9876543214`;
 
 export function CsvDirectoryImportModal({ visible, onClose }: CsvDirectoryImportModalProps) {
   const Colors = useColors();
@@ -42,7 +39,7 @@ export function CsvDirectoryImportModal({ visible, onClose }: CsvDirectoryImport
     mimeType?: string;
   } | null>(null);
 
-  const [uploading, setUploading] = useState(false);
+  const [busy, setBusy] = useState<'download' | 'upload' | null>(null);
   const [batchResult, setBatchResult] = useState<ImportBatchResult | null>(null);
   const [showTemplateView, setShowTemplateView] = useState(false);
 
@@ -62,13 +59,32 @@ export function CsvDirectoryImportModal({ visible, onClose }: CsvDirectoryImport
     setModalConfig({ visible: true, title, message, type });
   };
 
+  const handleDownloadTemplate = async () => {
+    if (busy) return;
+    try {
+      setBusy('download');
+      await downloadDirectoryCsvTemplateApi(user?.token, user?.tenantId);
+      showAppModal(
+        'Template ready',
+        'Save the .xlsx (Drive / Files), open it in Excel or Sheets, fill rows under the yellow headers, then upload that file here.',
+        'success',
+      );
+    } catch (err: any) {
+      showAppModal('Template', err?.message || 'Could not download the template.', 'error');
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const handlePickCsv = async () => {
+    if (busy) return;
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: [
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'application/vnd.ms-excel',
           'text/csv',
           'text/comma-separated-values',
-          'application/vnd.ms-excel',
           'text/plain',
           '*/*',
         ],
@@ -77,15 +93,20 @@ export function CsvDirectoryImportModal({ visible, onClose }: CsvDirectoryImport
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const asset = result.assets[0];
-        const isCsv =
-          asset.name.toLowerCase().endsWith('.csv') ||
-          asset.name.toLowerCase().endsWith('.txt') ||
+        const lower = asset.name.toLowerCase();
+        const isOk =
+          lower.endsWith('.xlsx') ||
+          lower.endsWith('.xls') ||
+          lower.endsWith('.csv') ||
+          lower.endsWith('.txt') ||
+          asset.mimeType?.toLowerCase().includes('sheet') ||
+          asset.mimeType?.toLowerCase().includes('excel') ||
           asset.mimeType?.toLowerCase().includes('csv');
 
-        if (!isCsv) {
+        if (!isOk) {
           showAppModal(
             'Invalid Format',
-            'Please select a valid CSV (.csv) or plain text directory file.',
+            'Please select the Excel template (.xlsx) or a CSV with the same headers.',
             'warning',
           );
           return;
@@ -100,24 +121,20 @@ export function CsvDirectoryImportModal({ visible, onClose }: CsvDirectoryImport
         setBatchResult(null);
       }
     } catch (err: any) {
-      showAppModal('Error', err?.message || 'Could not select CSV file', 'error');
+      showAppModal('Error', err?.message || 'Could not select directory file', 'error');
     }
   };
 
   const handleExecuteImport = async () => {
     if (!selectedFile) {
-      showAppModal('File Required', 'Please select a CSV directory file to import.', 'warning');
+      showAppModal('File Required', 'Please select the filled Excel (.xlsx) or CSV file to import.', 'warning');
       return;
     }
+    if (busy) return;
 
     try {
-      setUploading(true);
-      const res = await uploadDirectoryCsvApi(
-        user?.token,
-        user?.tenantId,
-        selectedFile,
-        SAMPLE_CSV_TEMPLATE,
-      );
+      setBusy('upload');
+      const res = await uploadDirectoryCsvApi(user?.token, user?.tenantId, selectedFile);
       setBatchResult(res);
       showAppModal(
         'Import Succeeded',
@@ -125,9 +142,9 @@ export function CsvDirectoryImportModal({ visible, onClose }: CsvDirectoryImport
         'success',
       );
     } catch (err: any) {
-      showAppModal('Import Failed', err?.message || 'Could not import the CSV file', 'error');
+      showAppModal('Import Failed', err?.message || 'Could not import the directory file', 'error');
     } finally {
-      setUploading(false);
+      setBusy(null);
     }
   };
 
@@ -152,7 +169,7 @@ export function CsvDirectoryImportModal({ visible, onClose }: CsvDirectoryImport
               <Ionicons name="shield-checkmark" size={13} color="#A78BFA" />
               <Text style={styles.superBadgeText}>SUPER ADMIN ONLY</Text>
             </View>
-            <Text style={styles.headerTitle}>College Directory CSV Importer</Text>
+            <Text style={styles.headerTitle}>College Directory Importer</Text>
           </View>
         </View>
 
@@ -165,22 +182,54 @@ export function CsvDirectoryImportModal({ visible, onClose }: CsvDirectoryImport
             <View style={styles.infoBannerCopy}>
               <Text style={styles.infoBannerTitle}>Batch User & Hostel Provisioning</Text>
               <Text style={styles.infoBannerSub}>
-                Upload the college master roster to create student, faculty, and hostel resident
-                accounts across campus databases in bulk.
+                Download the Excel template (yellow headers, empty rows), fill data manually, then
+                upload — same as CDRMS.
               </Text>
             </View>
+          </View>
+
+          {/* CDRMS-style: Download Template | Upload */}
+          <View style={styles.actionRow}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Download Excel template"
+              onPress={() => void handleDownloadTemplate()}
+              disabled={busy != null}
+              style={({ pressed }) => [
+                styles.secondaryActionBtn,
+                (busy != null || pressed) && { opacity: 0.75 },
+              ]}
+            >
+              <Ionicons name="download-outline" size={16} color="#F8FAFC" />
+              <Text style={styles.secondaryActionText}>
+                {busy === 'download' ? 'Downloading…' : 'Download Template'}
+              </Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Choose Excel file to upload"
+              onPress={() => void handlePickCsv()}
+              disabled={busy != null}
+              style={({ pressed }) => [
+                styles.primaryActionBtn,
+                (busy != null || pressed) && { opacity: 0.75 },
+              ]}
+            >
+              <Ionicons name="cloud-upload-outline" size={16} color="#080B11" />
+              <Text style={styles.primaryActionText}>Upload Excel</Text>
+            </Pressable>
           </View>
 
           {/* Template Helper Card */}
           <View style={styles.cardSection}>
             <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionTitle}>Expected CSV Schema</Text>
+              <Text style={styles.sectionTitle}>Expected columns</Text>
               <Pressable
                 onPress={() => setShowTemplateView((prev) => !prev)}
                 style={styles.templateToggleBtn}
               >
                 <Text style={styles.templateToggleText}>
-                  {showTemplateView ? 'Hide template' : 'View sample'}
+                  {showTemplateView ? 'Hide columns' : 'View columns'}
                 </Text>
                 <Ionicons
                   name={showTemplateView ? 'chevron-up' : 'chevron-down'}
@@ -211,21 +260,29 @@ export function CsvDirectoryImportModal({ visible, onClose }: CsvDirectoryImport
 
             {showTemplateView && (
               <View style={styles.sampleBox}>
-                <Text style={styles.sampleText}>{SAMPLE_CSV_TEMPLATE}</Text>
+                <Text style={styles.sampleText}>
+                  Headers only (no sample rows):{'\n'}
+                  {DIRECTORY_TEMPLATE_HEADERS}
+                </Text>
               </View>
             )}
           </View>
 
           {/* File Picker Section */}
           <View style={styles.cardSection}>
-            <Text style={styles.sectionTitle}>Upload Directory CSV</Text>
+            <Text style={styles.sectionTitle}>Selected file</Text>
 
             {selectedFile ? (
               <View style={styles.selectedFileCard}>
                 <View style={styles.fileIconBox}>
                   <Ionicons name="document-text" size={24} color="#10B981" />
                   <View style={styles.fileTag}>
-                    <Text style={styles.fileTagText}>CSV</Text>
+                    <Text style={styles.fileTagText}>
+                      {selectedFile.name.toLowerCase().endsWith('.xlsx') ||
+                      selectedFile.name.toLowerCase().endsWith('.xls')
+                        ? 'XLSX'
+                        : 'CSV'}
+                    </Text>
                   </View>
                 </View>
                 <View style={styles.fileDetails}>
@@ -252,9 +309,9 @@ export function CsvDirectoryImportModal({ visible, onClose }: CsvDirectoryImport
                 <View style={styles.dropzoneIconBox}>
                   <Ionicons name="cloud-upload-outline" size={32} color="#A78BFA" />
                 </View>
-                <Text style={styles.dropzoneTitle}>Choose .CSV Roster File</Text>
+                <Text style={styles.dropzoneTitle}>Choose filled .xlsx template</Text>
                 <Text style={styles.dropzoneSub}>
-                  Max file size: 5MB • Formatted UTF-8 CSV
+                  Max 5MB • Excel (.xlsx) or CSV with the same headers
                 </Text>
               </Pressable>
             )}
@@ -297,26 +354,30 @@ export function CsvDirectoryImportModal({ visible, onClose }: CsvDirectoryImport
 
           {/* Execute Button */}
           <Pressable
-            onPress={handleExecuteImport}
-            disabled={!selectedFile || uploading}
+            onPress={() => void handleExecuteImport()}
+            disabled={!selectedFile || busy != null}
             style={[
               styles.primaryBtn,
-              (!selectedFile || uploading) && { opacity: 0.5 },
+              (!selectedFile || busy != null) && { opacity: 0.5 },
             ]}
           >
             <Ionicons name="flash" size={18} color="#080B11" />
             <Text style={styles.primaryBtnText}>
-              {uploading ? 'Processing CSV...' : 'Execute Bulk Directory Import'}
+              {busy === 'upload' ? 'Processing file...' : 'Execute Bulk Directory Import'}
             </Text>
           </Pressable>
         </ScrollView>
 
-        {/* Uploading Loader Overlay */}
-        {uploading && (
+        {/* Busy Loader Overlay */}
+        {busy != null && (
           <LogoLoader
             overlay
             size={56}
-            text="Super Admin: Parsing & importing directory..."
+            text={
+              busy === 'download'
+                ? 'Downloading directory Excel template...'
+                : 'Super Admin: Parsing & importing directory...'
+            }
           />
         )}
 
@@ -423,6 +484,47 @@ function createStyles(Colors: any) {
       color: '#94A3B8',
       lineHeight: 18,
       marginTop: 4,
+    },
+    actionRow: {
+      flexDirection: 'row',
+      gap: 10,
+      marginBottom: 20,
+    },
+    secondaryActionBtn: {
+      flex: 1,
+      height: 44,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: '#334155',
+      backgroundColor: '#0F172A',
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+    },
+    secondaryActionText: {
+      fontFamily: Typography.bold,
+      fontSize: 12,
+      fontWeight: '700',
+      color: '#F8FAFC',
+    },
+    primaryActionBtn: {
+      flex: 1,
+      height: 44,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: 'rgba(167, 139, 250, 0.45)',
+      backgroundColor: '#A78BFA',
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+    },
+    primaryActionText: {
+      fontFamily: Typography.bold,
+      fontSize: 12,
+      fontWeight: '700',
+      color: '#080B11',
     },
     cardSection: {
       backgroundColor: '#0F172A',

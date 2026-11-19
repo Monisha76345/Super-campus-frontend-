@@ -13,6 +13,7 @@ import { useEffect, useMemo } from 'react';
 import { BackHandler, Platform } from 'react-native';
 
 import { AuthSessionProvider } from '@/features/auth';
+import { usePushNotifications } from '@/features/notifications/hooks/usePushNotifications';
 import { AppThemeProvider, useAppTheme } from '@/theme/app-theme';
 import { AlertModalProvider } from '@/components/ui';
 
@@ -47,6 +48,7 @@ function RootNavigator() {
   const { colors, scheme } = useAppTheme();
   const pathname = usePathname();
   const router = useRouter();
+  usePushNotifications();
 
   // Android Back Button Handling:
   // When pressing back from any feature/tab, come to Home first.

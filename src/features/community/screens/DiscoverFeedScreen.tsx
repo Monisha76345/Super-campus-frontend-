@@ -29,9 +29,11 @@ import {
 import { uploadMediaBatch } from '@/lib/api/media-upload';
 import { CampusPollsCard } from '../components/CampusPollsCard';
 import { CommentsModal } from '../components/CommentsModal';
+import { DiscoverImageViewer } from '../components/DiscoverImageViewer';
 import { FeedFilterTabs, FeedFilterType } from '../components/FeedFilterTabs';
 import { FeedHeader } from '../components/FeedHeader';
 import { PostCard } from '../components/PostCard';
+import { notifyVideoFeedScrolled, pauseAllVideos } from '../components/PostVideoPlayer';
 import { PostComposer } from '../components/PostComposer';
 import { SubmissionsBanner } from '../components/SubmissionsBanner';
 import { SubmissionsModal } from '../components/SubmissionsModal';
@@ -65,6 +67,25 @@ export function DiscoverFeedScreen() {
   const [showCommentsModal, setShowCommentsModal] = useState(false);
   const [showSubmissionsModal, setShowSubmissionsModal] = useState(false);
   const [showComposerModal, setShowComposerModal] = useState(false);
+
+  const handleOpenComposer = () => {
+    pauseAllVideos();
+    setShowComposerModal(true);
+  };
+  const [activeViewerImages, setActiveViewerImages] = useState<string[]>([]);
+  const [activeViewerIndex, setActiveViewerIndex] = useState(0);
+  const [isViewerVisible, setIsViewerVisible] = useState(false);
+
+  const handleOpenImageViewer = (images: string[], initialIndex: number) => {
+    pauseAllVideos();
+    setActiveViewerImages(images);
+    setActiveViewerIndex(initialIndex);
+    setIsViewerVisible(true);
+  };
+
+  const handleCloseImageViewer = () => {
+    setIsViewerVisible(false);
+  };
 
   const loadData = useCallback(async () => {
     if (!token) {
@@ -181,6 +202,7 @@ export function DiscoverFeedScreen() {
   };
 
   const handleOpenComments = (post: CommunityPost) => {
+    pauseAllVideos();
     setActivePostForComments(post);
     setShowCommentsModal(true);
   };
@@ -218,6 +240,7 @@ export function DiscoverFeedScreen() {
   };
 
   const handleOpenShare = (post: CommunityPost) => {
+    pauseAllVideos();
     setActivePostForShare(post);
   };
 
@@ -259,6 +282,11 @@ export function DiscoverFeedScreen() {
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
+        onScroll={notifyVideoFeedScrolled}
+        onScrollBeginDrag={notifyVideoFeedScrolled}
+        onScrollEndDrag={notifyVideoFeedScrolled}
+        onMomentumScrollEnd={notifyVideoFeedScrolled}
+        scrollEventThrottle={32}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -279,12 +307,12 @@ export function DiscoverFeedScreen() {
             <Text style={styles.shareBarAvatarText}>{userInitial.toUpperCase()}</Text>
           </View>
           <Pressable
-            onPress={() => setShowComposerModal(true)}
+            onPress={handleOpenComposer}
             style={styles.shareBarInputMock}>
             <Text style={styles.shareBarPlaceholder}>Share with your campus...</Text>
           </Pressable>
           <Pressable
-            onPress={() => setShowComposerModal(true)}
+            onPress={handleOpenComposer}
             style={({ pressed }) => [styles.shareBarPlusBtn, pressed && { opacity: 0.75 }]}
             hitSlop={8}>
             <Ionicons name="add" size={20} color="#FFFFFF" />
@@ -294,7 +322,10 @@ export function DiscoverFeedScreen() {
         {/* My Submissions Counter Banner */}
         <SubmissionsBanner
           count={submissions?.pendingCount || 0}
-          onPressView={() => setShowSubmissionsModal(true)}
+          onPressView={() => {
+            pauseAllVideos();
+            setShowSubmissionsModal(true);
+          }}
         />
 
         {/* Feed Posts List */}
@@ -318,6 +349,7 @@ export function DiscoverFeedScreen() {
               onCommentPress={handleOpenComments}
               onSharePress={handleOpenShare}
               onDeletePress={handleDeletePost}
+              onImagePress={handleOpenImageViewer}
             />
           ))
         )}
@@ -328,7 +360,7 @@ export function DiscoverFeedScreen() {
 
       {/* Floating Action Button (FAB) '+' */}
       <Pressable
-        onPress={() => setShowComposerModal(true)}
+        onPress={handleOpenComposer}
         style={({ pressed }) => [
           styles.fabButton,
           pressed && { transform: [{ scale: 0.94 }] },
@@ -384,6 +416,14 @@ export function DiscoverFeedScreen() {
         visible={showSubmissionsModal}
         data={submissions}
         onClose={() => setShowSubmissionsModal(false)}
+      />
+
+      {/* Fullscreen Image Viewer Modal */}
+      <DiscoverImageViewer
+        visible={isViewerVisible}
+        images={activeViewerImages}
+        initialIndex={activeViewerIndex}
+        onClose={handleCloseImageViewer}
       />
     </View>
   );

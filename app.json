@@ -26,7 +26,10 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": true
+      "predictiveBackGestureEnabled": true,
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "output": "static",
@@ -37,10 +40,9 @@
         "expo-build-properties",
         {
           "android": {
-            "compileSdkVersion": 35,
+            "compileSdkVersion": 36,
             "targetSdkVersion": 35,
-            "minSdkVersion": 26,
-            "buildToolsVersion": "35.0.0"
+            "minSdkVersion": 26
           },
           "ios": {
             "deploymentTarget": "16.4"
@@ -77,6 +79,16 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": false
+    },
+    "extra": {
+      "router": {
+        "asyncRoutes": {
+          "web": true
+        }
+      },
+      "eas": {
+        "projectId": "270e61a4-4a83-4bce-bae2-1384e852dab6"
+      }
     }
   }
 }

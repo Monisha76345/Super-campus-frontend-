@@ -17,17 +17,26 @@ function requiredPublicEnv(name: string): string {
  * - On iOS Simulators / Web, localhost works as-is.
  */
 function resolveHost(url: string): string {
-  // 1. Try to extract host machine IP from Expo bundler hostUri (e.g. "10.218.255.242:8081")
+  // Only rewrite localhost or IP-based URLs. Never replace public domain names.
+  const configuredHost = url.match(/:\/\/([^/:]+)/)?.[1];
+  const isLocalOrIp =
+    configuredHost === 'localhost' ||
+    /^\\d{1,3}(?:\\.\\d{1,3}){3}$/.test(configuredHost ?? '');
+
+  if (!isLocalOrIp) {
+    return url;
+  }
+
+  // 1. Use the Expo bundler host for local/IP-based URLs.
   const hostUri = Constants.expoConfig?.hostUri;
   if (hostUri) {
     const hostIp = hostUri.split(':')[0];
     if (hostIp) {
-      // Replaces localhost, 127.0.0.1, or ANY existing IP with the live Expo host machine IP
       return url.replace(/:\/\/[^/:]+/, `://${hostIp}`);
     }
   }
 
-  // 2. Fallback for Android Emulator when hostUri is unavailable
+  // 2. Android Emulator fallback for local/IP-based URLs.
   if (Platform.OS === 'android' && !Device.isDevice) {
     return url.replace(/:\/\/[^/:]+/, '://10.0.2.2');
   }

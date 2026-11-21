@@ -1,9 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   Modal,
   Pressable,
   ScrollView,
@@ -122,6 +123,45 @@ export function ChooseSportModal({
   const [slots, setSlots] = useState<SlotAvailability[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<SlotAvailability | null>(null);
+  const [hasMoreSlotsToScroll, setHasMoreSlotsToScroll] = useState(false);
+  const scrollCueAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(scrollCueAnim, {
+          toValue: 4,
+          duration: 750,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scrollCueAnim, {
+          toValue: 0,
+          duration: 750,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    anim.start();
+    return () => anim.stop();
+  }, [scrollCueAnim]);
+
+  useEffect(() => {
+    setHasMoreSlotsToScroll(slots.length > 4);
+  }, [slots]);
+
+  const handleSlotsContentSizeChange = (_: number, h: number) => {
+    setHasMoreSlotsToScroll(h > 185);
+  };
+
+  const handleSlotsScroll = (e: any) => {
+    const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+    const isNearBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - 20;
+    if (isNearBottom) {
+      if (hasMoreSlotsToScroll) setHasMoreSlotsToScroll(false);
+    } else if (contentSize.height > layoutMeasurement.height + 20) {
+      if (!hasMoreSlotsToScroll) setHasMoreSlotsToScroll(true);
+    }
+  };
   const [isOpenGame, setIsOpenGame] = useState(false);
   const [bookingInProgress, setBookingInProgress] = useState(false);
 
@@ -558,55 +598,78 @@ export function ChooseSportModal({
                     />
                   </View>
                 ) : (
-                  <ScrollView style={styles.slotsScroll} showsVerticalScrollIndicator={false}>
-                    <View style={styles.slotsGrid}>
-                      {slots.map((slot) => {
-                        const isSelected = selectedSlot?.startTime === slot.startTime;
-                        const isAvailable = slot.status === 'AVAILABLE';
-                        const isBlocked = slot.status === 'BLOCKED';
-                        return (
-                          <Pressable
-                            key={slot.startTime}
-                            disabled={!isAvailable}
-                            onPress={() => setSelectedSlot(slot)}
-                            style={[
-                              styles.slotBox,
-                              isAvailable && styles.slotBoxAvailable,
-                              isSelected && styles.slotBoxSelected,
-                              !isAvailable && styles.slotBoxUnavailable,
-                              isBlocked && styles.slotBoxBlocked,
-                            ]}
-                          >
-                            <Text
+                  <View style={styles.slotsWrapper}>
+                    <ScrollView
+                      style={styles.slotsScroll}
+                      showsVerticalScrollIndicator={false}
+                      scrollEventThrottle={16}
+                      onScroll={handleSlotsScroll}
+                      onContentSizeChange={handleSlotsContentSizeChange}
+                    >
+                      <View style={styles.slotsGrid}>
+                        {slots.map((slot) => {
+                          const isSelected = selectedSlot?.startTime === slot.startTime;
+                          const isAvailable = slot.status === 'AVAILABLE';
+                          const isBlocked = slot.status === 'BLOCKED';
+                          return (
+                            <Pressable
+                              key={slot.startTime}
+                              disabled={!isAvailable}
+                              onPress={() => setSelectedSlot(slot)}
                               style={[
-                                styles.slotTimeText,
-                                isSelected && styles.slotTimeTextSelected,
-                                !isAvailable && styles.slotTimeTextMuted,
+                                styles.slotBox,
+                                isAvailable && styles.slotBoxAvailable,
+                                isSelected && styles.slotBoxSelected,
+                                !isAvailable && styles.slotBoxUnavailable,
+                                isBlocked && styles.slotBoxBlocked,
                               ]}
                             >
-                              {slot.startTime.slice(0, 5)} - {slot.endTime.slice(0, 5)}
-                            </Text>
-                            <Text
-                              style={[
-                                styles.slotStatusSub,
-                                isSelected && styles.slotStatusSubSelected,
-                                isBlocked && styles.slotStatusBlocked,
-                              ]}
-                              numberOfLines={1}
-                            >
-                              {slot.status === 'AVAILABLE'
-                                ? 'Available'
-                                : slot.status === 'BOOKED'
-                                ? 'Booked'
-                                : isBlocked
-                                ? 'Called Off'
-                                : 'Past'}
-                            </Text>
-                          </Pressable>
-                        );
-                      })}
-                    </View>
-                  </ScrollView>
+                              <Text
+                                style={[
+                                  styles.slotTimeText,
+                                  isSelected && styles.slotTimeTextSelected,
+                                  !isAvailable && styles.slotTimeTextMuted,
+                                ]}
+                              >
+                                {slot.startTime.slice(0, 5)} - {slot.endTime.slice(0, 5)}
+                              </Text>
+                              <Text
+                                style={[
+                                  styles.slotStatusSub,
+                                  isSelected && styles.slotStatusSubSelected,
+                                  isBlocked && styles.slotStatusBlocked,
+                                ]}
+                                numberOfLines={1}
+                              >
+                                {slot.status === 'AVAILABLE'
+                                  ? 'Available'
+                                  : slot.status === 'BOOKED'
+                                  ? 'Booked'
+                                  : isBlocked
+                                  ? 'Called Off'
+                                  : 'Past'}
+                              </Text>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                    </ScrollView>
+
+                    {hasMoreSlotsToScroll && (
+                      <Animated.View
+                        pointerEvents="none"
+                        style={[
+                          styles.scrollCueOverlay,
+                          { transform: [{ translateY: scrollCueAnim }] },
+                        ]}
+                      >
+                        <View style={styles.scrollCuePill}>
+                          <Ionicons name="chevron-down" size={13} color={isDark ? '#38BDF8' : '#2563EB'} />
+                          <Text style={styles.scrollCueText}>Scroll for more timings</Text>
+                        </View>
+                      </Animated.View>
+                    )}
+                  </View>
                 )}
 
                 {/* Select Teammates Section */}
@@ -1032,9 +1095,40 @@ function createStyles(Colors: ColorTokens, isDark: boolean) {
       color: Colors.text.secondary,
       marginBottom: 10,
     },
+    slotsWrapper: {
+      position: 'relative',
+    },
     slotsScroll: {
       maxHeight: 180,
       marginBottom: 14,
+    },
+    scrollCueOverlay: {
+      position: 'absolute',
+      bottom: 20,
+      left: 0,
+      right: 0,
+      alignItems: 'center',
+    },
+    scrollCuePill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: isDark ? 'rgba(15, 23, 42, 0.92)' : 'rgba(255, 255, 255, 0.95)',
+      paddingHorizontal: 10,
+      paddingVertical: 3,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(56, 189, 248, 0.3)' : 'rgba(37, 99, 235, 0.2)',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.15,
+      shadowRadius: 3,
+      elevation: 3,
+    },
+    scrollCueText: {
+      fontSize: 11,
+      fontWeight: '600',
+      color: isDark ? '#38BDF8' : '#2563EB',
     },
     slotsGrid: {
       flexDirection: 'row',

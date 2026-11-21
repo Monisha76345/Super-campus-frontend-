@@ -5,6 +5,7 @@ import {
   Animated,
   AppState,
   AppStateStatus,
+  Dimensions,
   GestureResponderEvent,
   LayoutChangeEvent,
   Pressable,
@@ -12,6 +13,25 @@ import {
   Text,
   View,
 } from 'react-native';
+
+// Playback coordination across all feed videos
+type VideoScrollListener = () => void;
+const scrollListeners = new Set<VideoScrollListener>();
+
+export const notifyVideoFeedScrolled = () => {
+  scrollListeners.forEach((fn) => fn());
+};
+
+type VideoPlayListener = (activePlayerId: string) => void;
+const playListeners = new Set<VideoPlayListener>();
+
+export const notifyVideoStartedPlaying = (playerId: string) => {
+  playListeners.forEach((fn) => fn(playerId));
+};
+
+export const pauseAllVideos = () => {
+  playListeners.forEach((fn) => fn('__PAUSE_ALL__'));
+};
 
 interface PostVideoPlayerProps {
   uri: string;
@@ -26,6 +46,10 @@ export function PostVideoPlayer({
   isLiked = false,
   isScreenFocused = true,
 }: PostVideoPlayerProps) {
+  const playerId = useRef(`video_${Math.random().toString(36).substring(2, 9)}`).current;
+  const containerRef = useRef<any>(null);
+  const videoViewRef = useRef<VideoView>(null);
+
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -72,6 +96,54 @@ export function PostVideoPlayer({
     };
   }, [player, isScreenFocused]);
 
+  // Stop video when another video in the feed starts playing
+  useEffect(() => {
+    const handleOtherPlay = (activeId: string) => {
+      if (activeId !== playerId && player && player.playing) {
+        player.pause();
+        setIsPlaying(false);
+      }
+    };
+    playListeners.add(handleOtherPlay);
+    return () => {
+      playListeners.delete(handleOtherPlay);
+    };
+  }, [player, playerId]);
+
+  // Stop video & audio when user scrolls away from this video
+  useEffect(() => {
+    const checkVisibility = () => {
+      if (!player || !player.playing) return;
+      containerRef.current?.measureInWindow((_x: number, y: number, _width: number, height: number) => {
+        if (height <= 0) return;
+        const windowHeight = Dimensions.get('window').height;
+        const visibleTop = Math.max(0, y);
+        const visibleBottom = Math.min(windowHeight, y + height);
+        const visibleHeight = Math.max(0, visibleBottom - visibleTop);
+        // Pause when less than 50% of the video is visible on screen
+        const isNotMeaningfullyVisible = visibleHeight < height * 0.5;
+        if (isNotMeaningfullyVisible && player.playing) {
+          player.pause();
+          setIsPlaying(false);
+        }
+      });
+    };
+
+    scrollListeners.add(checkVisibility);
+    return () => {
+      scrollListeners.delete(checkVisibility);
+    };
+  }, [player]);
+
+  // Clean up on unmount
+  useEffect(() => {
+    return () => {
+      if (player && player.playing) {
+        player.pause();
+      }
+    };
+  }, [player]);
+
   useEffect(() => {
     if (!player) return;
 
@@ -90,7 +162,7 @@ export function PostVideoPlayer({
       }
     });
 
-    const statusSub = player.addListener('statusChange', (status) => {
+    const statusSub = player.addListener('statusChange', () => {
       if (player.duration && player.duration > 0) {
         setDuration(player.duration);
       }
@@ -142,37 +214,48 @@ export function PostVideoPlayer({
     ]).start(() => setHeartVisible(false));
   };
 
-  // Instagram Gesture Resolution: Double Tap vs Single Tap
+  const togglePlayPause = () => {
+    if (!player) return;
+    const isCurrentlyPlaying = player.playing || isPlaying;
+    if (isCurrentlyPlaying) {
+      player.pause();
+      setIsPlaying(false);
+      flashCenterIndicator('pause');
+    } else {
+      notifyVideoStartedPlaying(playerId);
+      player.play();
+      setIsPlaying(true);
+      flashCenterIndicator('play');
+    }
+  };
+
   const handleTap = () => {
     const now = Date.now();
-    const DOUBLE_TAP_WINDOW = 260; // 260ms window
+    const DOUBLE_TAP_WINDOW = 220;
 
-    if (now - lastTapRef.current < DOUBLE_TAP_WINDOW) {
-      // Confirmed Double Tap: Like post with heart burst animation
+    if (onLike && now - lastTapRef.current < DOUBLE_TAP_WINDOW) {
       if (singleTapTimerRef.current) {
         clearTimeout(singleTapTimerRef.current);
         singleTapTimerRef.current = null;
       }
       lastTapRef.current = 0;
       triggerHeartAnimation();
-      onLike?.();
-    } else {
-      lastTapRef.current = now;
-      // Schedule single tap playback toggle
-      if (singleTapTimerRef.current) {
-        clearTimeout(singleTapTimerRef.current);
-      }
+      onLike();
+      return;
+    }
+
+    lastTapRef.current = now;
+    if (singleTapTimerRef.current) {
+      clearTimeout(singleTapTimerRef.current);
+    }
+
+    if (onLike) {
       singleTapTimerRef.current = setTimeout(() => {
         singleTapTimerRef.current = null;
-        if (!player) return;
-        if (player.playing) {
-          player.pause();
-          flashCenterIndicator('pause');
-        } else {
-          player.play();
-          flashCenterIndicator('play');
-        }
+        togglePlayPause();
       }, DOUBLE_TAP_WINDOW);
+    } else {
+      togglePlayPause();
     }
   };
 
@@ -180,6 +263,15 @@ export function PostVideoPlayer({
     e?.stopPropagation?.();
     if (!player) return;
     player.muted = !player.muted;
+  };
+
+  const handleFullscreen = async (e: any) => {
+    e?.stopPropagation?.();
+    try {
+      await videoViewRef.current?.enterFullscreen();
+    } catch (err) {
+      console.warn('[PostVideoPlayer] Fullscreen error:', err);
+    }
   };
 
   const seekToPosition = (locationX: number) => {
@@ -209,17 +301,40 @@ export function PostVideoPlayer({
   const progressPercent = duration > 0 ? Math.min(100, Math.max(0, (currentTime / duration) * 100)) : 0;
 
   return (
-    <View style={styles.container}>
+    <View ref={containerRef} style={styles.container} collapsable={false}>
       <Pressable onPress={handleTap} style={styles.videoWrapper}>
         <VideoView
+          ref={videoViewRef}
           player={player}
           style={styles.video}
           contentFit="cover"
           nativeControls={false}
         />
 
-        {/* Center Flash Play/Pause Indicator with subtle translucent dark circle */}
-        {centerIcon && (
+        {/* Visible Play Indicator when video is paused */}
+        {!isPlaying && (
+          <Pressable
+            style={styles.centerIndicatorOverlay}
+            onPress={(e) => {
+              e.stopPropagation?.();
+              togglePlayPause();
+            }}
+            accessibilityLabel="Play video"
+            accessibilityRole="button"
+          >
+            <View style={styles.centerIndicatorCircle}>
+              <Ionicons
+                name="play"
+                size={34}
+                color="#FFFFFF"
+                style={{ marginLeft: 4 }}
+              />
+            </View>
+          </Pressable>
+        )}
+
+        {/* Transient Flash Play/Pause feedback on user tap while playing */}
+        {centerIcon && isPlaying && (
           <Animated.View
             style={[
               styles.centerIndicatorOverlay,
@@ -276,6 +391,17 @@ export function PostVideoPlayer({
             size={16}
             color="#FFFFFF"
           />
+        </Pressable>
+
+        {/* Bottom-Right Fullscreen Button */}
+        <Pressable
+          style={styles.fullscreenButton}
+          onPress={handleFullscreen}
+          hitSlop={12}
+          accessibilityLabel="Open fullscreen video"
+          accessibilityRole="button"
+        >
+          <Ionicons name="expand" size={16} color="#FFFFFF" />
         </Pressable>
       </Pressable>
 
@@ -334,7 +460,7 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   centerIndicatorOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 10,
@@ -343,15 +469,29 @@ const styles = StyleSheet.create({
     width: 68,
     height: 68,
     borderRadius: 34,
-    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.35)',
+    borderColor: 'rgba(255, 255, 255, 0.45)',
   },
   muteButton: {
     position: 'absolute',
     top: 12,
+    right: 12,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 5,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  fullscreenButton: {
+    position: 'absolute',
+    bottom: 12,
     right: 12,
     width: 32,
     height: 32,

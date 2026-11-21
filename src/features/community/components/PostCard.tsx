@@ -23,6 +23,7 @@ interface PostCardProps {
   onCommentPress: (post: CommunityPost) => void;
   onSharePress?: (post: CommunityPost) => void;
   onDeletePress?: (postId: string) => void;
+  onImagePress?: (imageUrls: string[], initialIndex: number) => void;
 }
 
 export function PostCard({
@@ -33,6 +34,7 @@ export function PostCard({
   onCommentPress,
   onSharePress,
   onDeletePress,
+  onImagePress,
 }: PostCardProps) {
   const { scheme, colors: Colors } = useAppTheme();
   const isDark = scheme === 'dark';
@@ -88,6 +90,11 @@ export function PostCard({
     if (!url) return false;
     return /\.(mp4|mov|m4v|webm)(\?.*)?$/i.test(url) || url.includes('/video/') || url.includes('type=video') || url.includes('ext=.mp4') || url.includes('.mp4') || url.includes('.mov');
   };
+
+  const imageUrls = useMemo(
+    () => (post.mediaUrls || []).filter((url) => !isVideoUrl(url)),
+    [post.mediaUrls],
+  );
 
   const formatDate = (dateStr: string) => {
     try {
@@ -199,8 +206,18 @@ export function PostCard({
               );
             }
 
+            const photoIdx = imageUrls.indexOf(url);
             return (
-              <Pressable key={url + idx} style={styles.imageFrame} onPress={handleCardPress}>
+              <Pressable
+                key={url + idx}
+                style={styles.imageFrame}
+                onPress={() => {
+                  if (onImagePress && imageUrls.length > 0) {
+                    onImagePress(imageUrls, photoIdx >= 0 ? photoIdx : 0);
+                  } else {
+                    handleCardPress();
+                  }
+                }}>
                 <Image
                   source={{ uri: url }}
                   style={styles.postImage}

@@ -17,7 +17,7 @@ import {
 
 import { ColorTokens } from '@/constants/colors';
 import { Typography } from '@/constants/fonts';
-import { AppMessageModal, AppMessageType, LogoLoader } from '@/components/ui';
+import { AppMessageModal, AppMessageType, LogoLoader, openGlobalImageCropper } from '@/components/ui';
 import { useColors } from '@/theme/app-theme';
 import {
   CreateMarketplaceItemPayload,
@@ -116,8 +116,26 @@ export function CreateListingModal({
     });
 
     if (!result.canceled && result.assets) {
-      const newUris = result.assets.map((a) => a.uri);
-      setPhotos((prev) => [...prev, ...newUris].slice(0, 4));
+      const pickedUris = result.assets.map((a) => a.uri);
+      // Crop each selected image sequentially before adding to photos list
+      const cropNext = (index: number, cropped: string[]) => {
+        if (index >= pickedUris.length) {
+          setPhotos((prev) => [...prev, ...cropped].slice(0, 4));
+          return;
+        }
+        openGlobalImageCropper({
+          uri: pickedUris[index],
+          title: 'Crop Photo',
+          onCrop: (croppedUri) => {
+            cropNext(index + 1, [...cropped, croppedUri]);
+          },
+          onCancel: () => {
+            // User skipped crop for this image — add original
+            cropNext(index + 1, [...cropped, pickedUris[index]]);
+          },
+        });
+      };
+      cropNext(0, []);
     }
   };
 

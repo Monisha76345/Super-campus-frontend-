@@ -21,7 +21,7 @@ import { ColorTokens } from '@/constants/colors';
 import { useAppTheme } from '@/theme/app-theme';
 import { Typography } from '@/constants/fonts';
 import { useAuthSession } from '@/features/auth';
-import { DatePickerField } from '@/components/ui';
+import { DatePickerField, openGlobalImageCropper } from '@/components/ui';
 import { HomeBottomTabs } from '@/features/home/components/HomeBottomTabs';
 import { openTab } from '@/features/campus/navigation';
 import { CsvDirectoryImportModal } from '@/features/campus/components/admin/CsvDirectoryImportModal';
@@ -188,16 +188,23 @@ export function ProfileScreen() {
       setError(source === 'camera' ? 'Camera access is needed to take a profile photo.' : 'Photo access is needed to choose a profile image.');
       return;
     }
-    const options = { mediaTypes: ['images'] as ImagePicker.MediaType[], allowsEditing: true, aspect: [1, 1] as [number, number], quality: 0.85 };
+    const options = { mediaTypes: ['images'] as ImagePicker.MediaType[], allowsEditing: false, quality: 0.9 };
     const picked = source === 'camera' ? await ImagePicker.launchCameraAsync(options) : await ImagePicker.launchImageLibraryAsync(options);
     const asset = picked.assets?.[0];
     if (picked.canceled || !asset) {
       return;
     }
-    const updated = await run(() => profileApi.uploadPhoto(auth, asset.uri, asset.mimeType));
-    if (draft && updated) {
-      setDraft((prev) => (prev ? { ...prev, photoKey: updated.photoKey, photoDocumentId: updated.photoDocumentId } : null));
-    }
+    openGlobalImageCropper({
+      uri: asset.uri,
+      aspect: [1, 1],
+      title: 'Crop Profile Photo',
+      onCrop: async (croppedUri) => {
+        const updated = await run(() => profileApi.uploadPhoto(auth, croppedUri, asset.mimeType));
+        if (draft && updated) {
+          setDraft((prev) => (prev ? { ...prev, photoKey: updated.photoKey, photoDocumentId: updated.photoDocumentId } : null));
+        }
+      },
+    });
   };
 
   const saveProfile = () => {

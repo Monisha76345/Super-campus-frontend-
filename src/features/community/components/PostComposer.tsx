@@ -16,6 +16,7 @@ import {
 import { Typography } from '@/constants/fonts';
 import { ColorTokens } from '@/constants/colors';
 import { useAppTheme } from '@/theme/app-theme';
+import { openGlobalImageCropper } from '@/components/ui';
 import { PostVisibility } from '../types/community-types';
 
 interface PostComposerProps {
@@ -93,7 +94,31 @@ export function PostComposer({
         const processed = processPickedAsset(asset);
         if (processed) items.push(processed);
       }
-      setSelectedMedia((prev) => [...prev, ...items].slice(0, 4));
+      if (mediaType === 'video' || items.length === 0) {
+        // Videos go straight through — no crop
+        setSelectedMedia((prev) => [...prev, ...items].slice(0, 4));
+      } else {
+        // Images: crop each one sequentially before adding
+        const cropNext = (index: number, cropped: typeof items) => {
+          if (index >= items.length) {
+            setSelectedMedia((prev) => [...prev, ...cropped].slice(0, 4));
+            return;
+          }
+          const item = items[index];
+          openGlobalImageCropper({
+            uri: item.uri,
+            title: 'Crop Photo',
+            onCrop: (croppedUri) => {
+              cropNext(index + 1, [...cropped, { ...item, uri: croppedUri }]);
+            },
+            onCancel: () => {
+              // Skip this image, continue with next
+              cropNext(index + 1, cropped);
+            },
+          });
+        };
+        cropNext(0, []);
+      }
     }
   };
 
@@ -119,7 +144,20 @@ export function PostComposer({
     if (!result.canceled && result.assets && result.assets[0]) {
       const processed = processPickedAsset(result.assets[0]);
       if (processed) {
-        setSelectedMedia((prev) => [...prev, processed].slice(0, 4));
+        if (mediaType === 'image') {
+          openGlobalImageCropper({
+            uri: processed.uri,
+            title: 'Crop Photo',
+            onCrop: (croppedUri) => {
+              setSelectedMedia((prev) => [...prev, { ...processed, uri: croppedUri }].slice(0, 4));
+            },
+            onCancel: () => {
+              setSelectedMedia((prev) => [...prev, processed].slice(0, 4));
+            },
+          });
+        } else {
+          setSelectedMedia((prev) => [...prev, processed].slice(0, 4));
+        }
       }
     }
   };

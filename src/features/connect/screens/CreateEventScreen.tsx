@@ -20,6 +20,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ColorTokens } from '@/constants/colors';
 import { Typography } from '@/constants/fonts';
 import { useAppTheme } from '@/theme/app-theme';
+import { openGlobalImageCropper } from '@/components/ui';
 import { CreateEventPayload } from '../types/connect-types';
 import { createEventApi } from '../api/connect-api';
 
@@ -102,13 +103,20 @@ export function CreateEventScreen({
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [16, 9],
-      quality: 0.85,
+      allowsEditing: false,
+      quality: 0.9,
     });
 
     if (!result.canceled && result.assets && result.assets[0]) {
-      setBannerUri(result.assets[0].uri);
+      const pickedAsset = result.assets[0];
+      openGlobalImageCropper({
+        uri: pickedAsset.uri,
+        aspect: [16, 9],
+        title: 'Crop Event Poster',
+        onCrop: (croppedUri) => {
+          setBannerUri(croppedUri);
+        },
+      });
     }
   };
 

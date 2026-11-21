@@ -1189,13 +1189,6 @@ export function OutpassScreen() {
               </View>
             </View>
 
-            {/* Token details */}
-            <View style={styles.tokenPill}>
-              <Ionicons name="key-outline" size={13} color={Colors.text.tertiary} />
-              <Text style={styles.tokenPillText} numberOfLines={1}>
-                PASS TOKEN: {activeQrPass?.qrToken || activeQrPass?.id}
-              </Text>
-            </View>
 
             {/* Parent SMS notification status */}
             {activeQrPass?.parentPhone ? (

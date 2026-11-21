@@ -37,10 +37,32 @@ export async function fetchProjectsApi(
   }
 
   const qs = queryParts.length > 0 ? `?${queryParts.join('&')}` : '';
-  return apiRequest<Project[]>(`/projects${qs}`, {
+  const projects = await apiRequest<Project[]>(`/projects${qs}`, {
     method: 'GET',
     token,
     tenantId,
+  });
+
+  return (projects || []).map((p) => {
+    if (!p.pdfDocument && p.media && p.media.length > 0) {
+      const doc = p.media.find(
+        (m) =>
+          m.mediaType === 'DOCUMENT' ||
+          m.fileUrl?.toLowerCase().includes('.pdf') ||
+          m.fileName?.toLowerCase().endsWith('.pdf') ||
+          (m.fileUrl && m.fileUrl.includes('document-uploader')),
+      );
+      if (doc && doc.fileUrl) {
+        return {
+          ...p,
+          pdfDocument: {
+            name: doc.fileName || 'Project_Document.pdf',
+            uri: doc.fileUrl,
+          },
+        };
+      }
+    }
+    return p;
   });
 }
 

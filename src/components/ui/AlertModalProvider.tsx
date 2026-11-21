@@ -2,6 +2,11 @@ import React, { createContext, useCallback, useContext, useEffect, useState } fr
 import { Alert, AlertButton, AlertOptions } from 'react-native';
 
 import { AppMessageModal, AppMessageType } from './AppMessageModal';
+import {
+  GlobalImageCropperModal,
+  registerGlobalImageCropper,
+  unregisterGlobalImageCropper,
+} from './GlobalImageCropperModal';
 
 interface AlertState {
   visible: boolean;
@@ -54,12 +59,41 @@ export function showGlobalAlert(
 }
 
 export function AlertModalProvider({ children }: { children: React.ReactNode }) {
+  const [cropperState, setCropperState] = useState<{
+    visible: boolean;
+    uri: string | null;
+    aspect?: [number, number];
+    title?: string;
+    onCrop?: (croppedUri: string) => void;
+    onCancel?: () => void;
+  }>({
+    visible: false,
+    uri: null,
+  });
+
   const [state, setState] = useState<AlertState>({
     visible: false,
     type: 'info',
     title: '',
     message: '',
   });
+
+  useEffect(() => {
+    registerGlobalImageCropper((opts) => {
+      setCropperState({
+        visible: true,
+        uri: opts.uri,
+        aspect: opts.aspect,
+        title: opts.title,
+        onCrop: opts.onCrop,
+        onCancel: opts.onCancel,
+      });
+    });
+
+    return () => {
+      unregisterGlobalImageCropper();
+    };
+  }, []);
 
   const hideAlert = useCallback(() => {
     setState((prev) => ({ ...prev, visible: false }));
@@ -186,6 +220,22 @@ export function AlertModalProvider({ children }: { children: React.ReactNode }) 
         secondaryButtonText={state.secondaryButtonText}
         onSecondaryPress={state.onSecondaryPress}
         onClose={hideAlert}
+      />
+      <GlobalImageCropperModal
+        visible={cropperState.visible}
+        uri={cropperState.uri}
+        aspect={cropperState.aspect}
+        title={cropperState.title}
+        onConfirm={(croppedUri) => {
+          const cb = cropperState.onCrop;
+          setCropperState((prev) => ({ ...prev, visible: false }));
+          cb?.(croppedUri);
+        }}
+        onCancel={() => {
+          const cb = cropperState.onCancel;
+          setCropperState((prev) => ({ ...prev, visible: false }));
+          cb?.();
+        }}
       />
     </AlertContext.Provider>
   );

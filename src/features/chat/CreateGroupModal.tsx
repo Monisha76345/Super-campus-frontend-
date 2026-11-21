@@ -22,6 +22,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ColorTokens } from '@/constants/colors';
 import { Typography } from '@/constants/fonts';
 import { useAppTheme } from '@/theme/app-theme';
+import { openGlobalImageCropper } from '@/components/ui';
 import { profilePhotoUri } from '@/features/profile/api/profile-api';
 import { createGroupChatApi, searchUsersApi } from './chat-api';
 import { ChatThread, SearchUser } from './types';
@@ -118,26 +119,37 @@ export function CreateGroupModal({
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
+        allowsEditing: false,
+        quality: 0.9,
       });
       if (!result.canceled && result.assets[0]?.uri) {
-        setUploadingPhoto(true);
-        const uploadedUrl = await uploadMediaToServer(
-          result.assets[0].uri,
-          token,
-          tenantId,
-          'image/jpeg',
-          'chat_group',
-        );
-        setGroupPhotoUri(result.assets[0].uri);
-        setGroupPhotoKey(uploadedUrl);
+        const pickedUri = result.assets[0].uri;
+        openGlobalImageCropper({
+          uri: pickedUri,
+          aspect: [1, 1],
+          title: 'Crop Group Photo',
+          onCrop: async (croppedUri) => {
+            setUploadingPhoto(true);
+            try {
+              const uploadedUrl = await uploadMediaToServer(
+                croppedUri,
+                token,
+                tenantId,
+                'image/jpeg',
+                'chat_group',
+              );
+              setGroupPhotoUri(croppedUri);
+              setGroupPhotoKey(uploadedUrl);
+            } catch (e: any) {
+              Alert.alert('Photo Error', e?.message || 'Could not upload group photo.');
+            } finally {
+              setUploadingPhoto(false);
+            }
+          },
+        });
       }
     } catch (e: any) {
       Alert.alert('Photo Error', e?.message || 'Could not pick group photo.');
-    } finally {
-      setUploadingPhoto(false);
     }
   };
 

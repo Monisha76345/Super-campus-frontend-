@@ -45,21 +45,8 @@ export function HomeHeader({
         </View>
       </Pressable>
 
-      {/* Right Controls: Campus Pill & Glass Notification Bell */}
+      {/* Right Controls: Glass Notification Bell */}
       <View style={styles.rightSection}>
-        {/* Campus Location Pill */}
-        <Pressable
-          onPress={
-            onCampusPress || (() => Alert.alert('Campus Selected', `Active campus: ${campusName}`))
-          }
-          style={({ pressed }) => [styles.campusPill, pressed && styles.pressed]}>
-          <View style={styles.locationDot} />
-          <Text style={styles.campusNameText} numberOfLines={1}>
-            {campusName}
-          </Text>
-          <Ionicons name="chevron-down" size={12} color={Colors.text.secondary} />
-        </Pressable>
-
         {/* Notification Bell */}
         <Pressable
           onPress={

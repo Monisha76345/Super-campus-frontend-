@@ -1,7 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 import * as WebBrowser from 'expo-web-browser';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -21,6 +23,7 @@ import { Typography } from '@/constants/fonts';
 import { useAuthSession } from '@/features/auth/session/AuthSessionProvider';
 import { startDirectChatApi } from '@/features/chat/chat-api';
 import { useColors } from '@/theme/app-theme';
+import { mediaPreviewUrl } from '@/lib/api/media-upload';
 import {
   applyToProjectApi,
   fetchProjectApplicationsApi,
@@ -65,6 +68,7 @@ export function ProjectDetailModal({
 
   const [updating, setUpdating] = useState(false);
   const [messaging, setMessaging] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
 
   // Funding Modal State
   const [showFundModal, setShowFundModal] = useState(false);
@@ -134,23 +138,85 @@ export function ProjectDetailModal({
   const crowdfunding = project.supportNeeds?.find((s) => s.serviceType === 'CROWDFUNDING');
   const hasFunding = !!collegeFunding || !!crowdfunding || (project.fundingTarget && project.fundingTarget > 0);
 
-  // Open PDF Document
-  const handleOpenPdf = async () => {
-    const pdfUri = project.pdfDocument?.uri;
-    if (!pdfUri) {
+  // Resolve attached PDF document from either project.pdfDocument or project.media
+  const attachedPdf = useMemo(() => {
+    if (project?.pdfDocument?.uri) {
+      return project.pdfDocument;
+    }
+    const docMedia = project?.media?.find(
+      (m) =>
+        m.mediaType === 'DOCUMENT' ||
+        m.fileUrl?.toLowerCase().includes('.pdf') ||
+        m.fileName?.toLowerCase().endsWith('.pdf') ||
+        (m.fileUrl && m.fileUrl.includes('document-uploader')),
+    );
+    if (docMedia && docMedia.fileUrl) {
+      return {
+        name: docMedia.fileName || 'Project_Document.pdf',
+        uri: docMedia.fileUrl,
+      };
+    }
+    return null;
+  }, [project]);
+
+  const resolveDocUrl = (rawUri: string): string => {
+    if (
+      rawUri.startsWith('http://') ||
+      rawUri.startsWith('https://') ||
+      rawUri.startsWith('file://') ||
+      rawUri.startsWith('content://')
+    ) {
+      return rawUri;
+    }
+    return mediaPreviewUrl(rawUri);
+  };
+
+  // Download / Open PDF Document
+  const handleDownloadPdf = async () => {
+    if (!attachedPdf?.uri) {
       showModal('No Document', 'No PDF file attached to this project.', 'warning');
       return;
     }
+
+    setDownloadingPdf(true);
+    const targetUrl = resolveDocUrl(attachedPdf.uri);
+
     try {
-      if (pdfUri.startsWith('http://') || pdfUri.startsWith('https://')) {
-        await WebBrowser.openBrowserAsync(pdfUri);
-      } else {
-        await Linking.openURL(pdfUri);
+      let localUri = targetUrl;
+
+      // If remote URL, download the original PDF to the local device storage
+      if (targetUrl.startsWith('http://') || targetUrl.startsWith('https://')) {
+        const cleanName = (attachedPdf.name || 'Project_Document.pdf').replace(/[^a-zA-Z0-9._-]/g, '_');
+        const filename = cleanName.toLowerCase().endsWith('.pdf') ? cleanName : `${cleanName}.pdf`;
+        const targetDir = FileSystem.documentDirectory || FileSystem.cacheDirectory;
+        const fileDest = `${targetDir}${filename}`;
+
+        const downloadResult = await FileSystem.downloadAsync(targetUrl, fileDest);
+        localUri = downloadResult.uri;
       }
-    } catch {
-      Linking.openURL(pdfUri).catch(() => {
-        showModal('Preview Error', 'Could not open PDF viewer on your device.', 'error');
-      });
+
+      // Allow the user to open/share/save the downloaded file via native Android/iOS interface
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(localUri, {
+          mimeType: 'application/pdf',
+          dialogTitle: attachedPdf.name || 'Save or Open Project PDF',
+          UTI: 'com.adobe.pdf',
+        });
+      } else {
+        await Linking.openURL(localUri);
+      }
+    } catch (err: any) {
+      try {
+        await Linking.openURL(targetUrl);
+      } catch {
+        showModal(
+          'Download Failed',
+          err?.message || 'Could not download or open the project PDF document.',
+          'error',
+        );
+      }
+    } finally {
+      setDownloadingPdf(false);
     }
   };
 
@@ -613,13 +679,14 @@ export function ProjectDetailModal({
             )}
 
             {/* PDF Document Preview & Download Card */}
-            {project.pdfDocument && (
+            {attachedPdf && (
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Project Documentation</Text>
                 <Pressable
                   style={styles.pdfCard}
-                  onPress={handleOpenPdf}
+                  onPress={handleDownloadPdf}
                   accessibilityRole="button"
+                  accessibilityLabel="Download Project PDF"
                 >
                   <View style={styles.pdfIconBox}>
                     <Ionicons name="document-text" size={24} color="#EF4444" />
@@ -629,13 +696,19 @@ export function ProjectDetailModal({
                   </View>
                   <View style={styles.pdfDetails}>
                     <Text style={styles.pdfName} numberOfLines={1}>
-                      {project.pdfDocument.name}
+                      {attachedPdf.name || 'Project Document.pdf'}
                     </Text>
-                    <Text style={styles.pdfSize}>Tap to preview / download PDF</Text>
+                    <Text style={styles.pdfSize}>Original attached document</Text>
                   </View>
                   <View style={styles.pdfActionPill}>
-                    <Ionicons name="eye-outline" size={14} color="#FFFFFF" />
-                    <Text style={styles.pdfActionText}>View</Text>
+                    {downloadingPdf ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <>
+                        <Ionicons name="download-outline" size={14} color="#FFFFFF" />
+                        <Text style={styles.pdfActionText}>Download PDF</Text>
+                      </>
+                    )}
                   </View>
                 </Pressable>
               </View>

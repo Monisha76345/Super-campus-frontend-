@@ -141,3 +141,15 @@ export interface CreateOpportunityPayload {
   documentUrl?: string;
   documentName?: string;
 }
+
+export interface CreateClubPayload {
+  name: string;
+  category: string;
+  description: string;
+  leadName?: string;
+  meetingSchedule?: string;
+  roomOrVenue?: string;
+  contactEmail?: string;
+  bannerKey?: string;
+}
+

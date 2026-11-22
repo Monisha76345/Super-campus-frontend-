@@ -37,6 +37,19 @@ export async function fetchClubsApi(token: string, tenantId: string): Promise<Ca
   });
 }
 
+export async function createClubApi(
+  token: string,
+  tenantId: string,
+  payload: import('../types/connect-types').CreateClubPayload,
+): Promise<CampusClub> {
+  return apiRequest<CampusClub>('/connect/clubs', {
+    method: 'POST',
+    token,
+    tenantId,
+    body: payload,
+  });
+}
+
 export async function fetchClubDetailsApi(
   token: string,
   tenantId: string,

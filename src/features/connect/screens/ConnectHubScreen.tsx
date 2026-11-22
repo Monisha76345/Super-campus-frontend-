@@ -11,6 +11,7 @@ import { ConnectHomeScreen } from './ConnectHomeScreen';
 import { ConnectDirectoryScreen } from './ConnectDirectoryScreen';
 import { ConnectFeedScreen } from './ConnectFeedScreen';
 import { CreateEventScreen } from './CreateEventScreen';
+import { CreateClubScreen } from './CreateClubScreen';
 import { CreateOpportunityScreen } from './CreateOpportunityScreen';
 import { MemberProfileScreen } from './MemberProfileScreen';
 import { ConnectMember, ConnectTab } from '../types/connect-types';
@@ -20,6 +21,7 @@ type ConnectViewMode =
   | 'directory'
   | 'feed'
   | 'create_event'
+  | 'create_club'
   | 'create_opportunity'
   | 'member_profile';
 
@@ -90,6 +92,7 @@ export function ConnectHubScreen() {
           tenantId={tenantId}
           onBack={() => transitionTo('hub')}
           onOpenCreateEvent={() => transitionTo('create_event')}
+          onOpenCreateClub={() => transitionTo('create_club')}
           onOpenCreateOpportunity={handleOpenCreateOpportunity}
         />
       )}
@@ -101,6 +104,16 @@ export function ConnectHubScreen() {
           tenantId={tenantId}
           onBack={() => transitionTo('feed', 'events')}
           onEventCreated={() => transitionTo('feed', 'events')}
+        />
+      )}
+
+      {mode === 'create_club' && (
+        <CreateClubScreen
+          campusName={campusName}
+          token={token}
+          tenantId={tenantId}
+          onBack={() => transitionTo('feed', 'clubs')}
+          onClubCreated={() => transitionTo('feed', 'clubs')}
         />
       )}
 
@@ -125,7 +138,10 @@ export function ConnectHubScreen() {
       )}
 
       {/* Floating 5-tab Bottom Navigation Bar (hidden on dedicated modals/screens) */}
-      {mode !== 'member_profile' && mode !== 'create_event' && mode !== 'create_opportunity' && (
+      {mode !== 'member_profile' &&
+        mode !== 'create_event' &&
+        mode !== 'create_club' &&
+        mode !== 'create_opportunity' && (
         <HomeBottomTabs
           activeTab="connect"
           onTabChange={(tab) => openTab(router, tab)}

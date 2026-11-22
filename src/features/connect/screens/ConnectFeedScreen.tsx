@@ -41,6 +41,7 @@ interface ConnectFeedScreenProps {
   tenantId: string;
   onBack: () => void;
   onOpenCreateEvent: () => void;
+  onOpenCreateClub: () => void;
   onOpenCreateOpportunity: (type: 'INTERNSHIP' | 'JOB') => void;
 }
 
@@ -58,6 +59,7 @@ export function ConnectFeedScreen({
   tenantId,
   onBack,
   onOpenCreateEvent,
+  onOpenCreateClub,
   onOpenCreateOpportunity,
 }: ConnectFeedScreenProps) {
   const { scheme, colors: Colors } = useAppTheme();
@@ -287,9 +289,8 @@ export function ConnectFeedScreen({
 
   // Determine if post button should show
   const showPostButton = useMemo(() => {
-    if (activeTab === 'clubs') return false;
     if (activeTab === 'jobs') return canPostJob;
-    return true; // events and internships are open to campus
+    return true; // events, clubs, and internships are open to campus
   }, [activeTab, canPostJob]);
 
   return (
@@ -342,6 +343,8 @@ export function ConnectFeedScreen({
             onPress={() => {
               if (activeTab === 'events') {
                 onOpenCreateEvent();
+              } else if (activeTab === 'clubs') {
+                onOpenCreateClub();
               } else if (activeTab === 'internships') {
                 onOpenCreateOpportunity('INTERNSHIP');
               } else if (activeTab === 'jobs') {
@@ -352,9 +355,11 @@ export function ConnectFeedScreen({
             <Text style={styles.postEventText}>
               {activeTab === 'events'
                 ? 'Post event'
-                : activeTab === 'internships'
-                  ? 'Post internship'
-                  : 'Post job'}
+                : activeTab === 'clubs'
+                  ? 'Register club'
+                  : activeTab === 'internships'
+                    ? 'Post internship'
+                    : 'Post job'}
             </Text>
           </Pressable>
         )}

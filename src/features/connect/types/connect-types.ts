@@ -58,6 +58,7 @@ export interface CampusClub {
   name: string;
   category: string;
   description: string;
+  overview?: string | null;
   memberCount: number;
   bannerKey: string | null;
   bannerUrl?: string | null;
@@ -86,6 +87,11 @@ export interface CampusOpportunity {
   documentUrl?: string | null;
   documentName?: string | null;
   skillsAndEligibility?: string | null;
+  createdBy?: string;
+  creatorName?: string | null;
+  creatorRole?: string | null;
+  creatorPhotoKey?: string | null;
+  creatorEmail?: string | null;
 }
 
 export interface ConnectMember {
@@ -142,10 +148,19 @@ export interface CreateOpportunityPayload {
   documentName?: string;
 }
 
+export interface CreateClubAchievementPayload {
+  title: string;
+  description?: string;
+  badgeText?: string;
+  date?: string;
+}
+
 export interface CreateClubPayload {
   name: string;
   category: string;
   description: string;
+  overview?: string;
+  achievements?: CreateClubAchievementPayload[];
   leadName?: string;
   meetingSchedule?: string;
   roomOrVenue?: string;

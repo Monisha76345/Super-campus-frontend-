@@ -104,7 +104,7 @@ export function ProjectCard({ project, onPress, onEdit }: ProjectCardProps) {
       <View style={styles.creatorRow}>
         <View style={styles.creatorAvatarCircle}>
           <Text style={styles.creatorAvatarText}>
-            {(project.creatorName || 'C').charAt(0).toUpperCase()}
+            {String(project.creatorName || 'C').charAt(0).toUpperCase()}
           </Text>
         </View>
         <View style={styles.creatorMetaCol}>
@@ -152,17 +152,21 @@ export function ProjectCard({ project, onPress, onEdit }: ProjectCardProps) {
         <View style={styles.metaItem}>
           <Text style={styles.metaText}>{project.duration || '3 – 6 Months'}</Text>
         </View>
-        {project.fundingTarget && project.fundingTarget > 0 ? (
+        {Number(project.fundingTarget) > 0 ? (
           <View style={[styles.metaItem, { backgroundColor: 'rgba(16, 185, 129, 0.12)', borderColor: 'rgba(16, 185, 129, 0.3)' }]}>
             <Text style={[styles.metaText, { color: '#10B981', fontWeight: '700' }]}>
-              ₹{(project.fundingRaised || 0).toLocaleString('en-IN')} / ₹{project.fundingTarget.toLocaleString('en-IN')}
+              ₹{Number(project.fundingRaised || 0).toLocaleString('en-IN')} / ₹{Number(project.fundingTarget).toLocaleString('en-IN')}
             </Text>
           </View>
         ) : null}
-        {project.skills && project.skills.length > 0 ? (
+        {Array.isArray(project.skills) && project.skills.length > 0 ? (
           <View style={styles.skillSnippet}>
             <Text style={styles.skillSnippetText} numberOfLines={1}>
-              {project.skills.slice(0, 2).join(' · ')}
+              {project.skills
+                .slice(0, 2)
+                .map((s) => (typeof s === 'string' ? s : (s as any)?.skillName || (s as any)?.name || ''))
+                .filter(Boolean)
+                .join(' · ')}
             </Text>
           </View>
         ) : null}

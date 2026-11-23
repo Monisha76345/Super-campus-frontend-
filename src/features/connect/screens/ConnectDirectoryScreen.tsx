@@ -278,7 +278,7 @@ export function ConnectDirectoryScreen({
               <Text style={styles.emptyTitle}>No {selectedRole.toLowerCase()} found</Text>
               <Text style={styles.emptySub}>Try adjusting your search query or batch filter.</Text>
             </View>
-          ) : null
+          ) : undefined
         }
       />
     </View>

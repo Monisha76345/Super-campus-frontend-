@@ -29,7 +29,13 @@ import { ChatThread, ParticipantSummary, SearchUser } from './types';
 
 export function InboxScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ recipientId?: string; recipientName?: string }>();
+  const params = useLocalSearchParams<{
+    threadId?: string;
+    recipientId?: string;
+    recipientName?: string;
+    opportunityTitle?: string;
+    opportunityCompany?: string;
+  }>();
   const { scheme, colors: Colors } = useAppTheme();
   const isDark = scheme === 'dark';
   const styles = useMemo(() => createStyles(Colors, isDark), [Colors, isDark]);
@@ -46,34 +52,68 @@ export function InboxScreen() {
     type?: 'DIRECT' | 'GROUP';
     name?: string | null;
     participantsCount?: number;
+    initialDraft?: string;
   } | null>(null);
 
   // Group creation modal state
   const [createGroupModalVisible, setCreateGroupModalVisible] = useState(false);
 
-  // Auto-open chat if navigated with recipientId
+  // Auto-open chat if navigated with recipientId or opportunity details
   useEffect(() => {
-    if (!token || !params.recipientId) return;
+    if (!params.recipientId) return;
     const recipientId = params.recipientId;
-    const recipientName = params.recipientName || 'Member';
+    const recipientName = params.recipientName || 'Recruiter';
+    const draftText = params.opportunityTitle
+      ? `Hi, I am interested in the "${params.opportunityTitle}" ${params.opportunityCompany ? `at ${params.opportunityCompany}` : ''} opportunity. Could you share more details?`
+      : '';
 
     (async () => {
       try {
-        const thread = await startDirectChatApi(token, tenantId, recipientId);
-        setActiveThread({
-          id: thread.id,
-          recipient: thread.recipient || {
-            userId: recipientId,
-            fullName: recipientName,
-            initials: recipientName.slice(0, 2).toUpperCase(),
-            role: 'Student',
-          },
-        });
+        if (token) {
+          const thread = await startDirectChatApi(token, tenantId, recipientId);
+          setActiveThread({
+            id: thread.id,
+            recipient: thread.recipient || {
+              userId: recipientId,
+              fullName: recipientName,
+              usn: null,
+              role: 'Recruiter',
+              initials: recipientName.slice(0, 2).toUpperCase(),
+              department: 'Campus Opportunities',
+            },
+            type: 'DIRECT',
+            initialDraft: draftText,
+          });
+          return;
+        }
       } catch (err) {
-        console.warn('Failed to auto-open direct chat thread:', err);
+        console.warn('Failed to auto-open direct chat thread on server:', err);
       }
+
+      // Fallback: Always open active thread so user can message immediately
+      setActiveThread({
+        id: params.threadId || `direct-${recipientId}`,
+        recipient: {
+          userId: recipientId,
+          fullName: recipientName,
+          usn: null,
+          role: 'Recruiter',
+          initials: recipientName.slice(0, 2).toUpperCase(),
+          department: 'Campus Opportunities',
+        },
+        type: 'DIRECT',
+        initialDraft: draftText,
+      });
     })();
-  }, [params.recipientId, params.recipientName, token, tenantId]);
+  }, [
+    params.recipientId,
+    params.recipientName,
+    params.threadId,
+    params.opportunityTitle,
+    params.opportunityCompany,
+    token,
+    tenantId,
+  ]);
 
   // Thread list state
   const [threads, setThreads] = useState<ChatThread[]>([]);
@@ -198,6 +238,7 @@ export function InboxScreen() {
         participantsCount={activeThread.participantsCount}
         token={token}
         tenantId={tenantId}
+        initialDraft={activeThread.initialDraft}
         onBack={() => {
           setActiveThread(null);
           loadThreadsAndSuggestions();

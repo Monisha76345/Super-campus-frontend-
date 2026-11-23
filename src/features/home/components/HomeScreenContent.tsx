@@ -14,6 +14,7 @@ import { profileApi } from '@/features/profile/api/profile-api';
 import { CampusProfile } from '@/features/profile/types';
 import { useColors } from '@/theme/app-theme';
 
+import { AlumniApprovalModal } from '@/features/campus/components/admin/AlumniApprovalModal';
 import { CsvDirectoryImportModal } from '@/features/campus/components/admin/CsvDirectoryImportModal';
 import { CommunityHeroCard } from './CommunityHeroCard';
 import { FoodDiningSection } from './FoodDiningSection';
@@ -50,6 +51,7 @@ export function HomeScreenContent() {
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab] = useState<TabKey>('home');
   const [showCsvModal, setShowCsvModal] = useState(false);
+  const [showAlumniModal, setShowAlumniModal] = useState(false);
 
   const roleNormalized = (user?.role || '').toLowerCase();
   const isSuperAdmin =
@@ -153,11 +155,26 @@ export function HomeScreenContent() {
               </View>
             </View>
 
-            <Text style={styles.superAdminTitle}>Campus Directory & CSV Onboarding</Text>
+            <Text style={styles.superAdminTitle}>Campus Administration & Governance</Text>
             <Text style={styles.superAdminSubtitle}>
-              Download the Excel template (yellow headers), fill rows manually, then upload — same as CDRMS.
+              Manage campus members, approve pending alumni mobile claims, and batch onboard directory entries.
             </Text>
 
+            {/* Action 1: Alumni Approvals */}
+            <Pressable
+              onPress={() => setShowAlumniModal(true)}
+              style={({ pressed }) => [styles.csvUploadButton, { marginBottom: 10, borderColor: 'rgba(16, 185, 129, 0.35)' }, pressed && styles.pressed]}>
+              <View style={[styles.csvIconCircle, { backgroundColor: '#10B981' }]}>
+                <Ionicons name="school" size={18} color="#FFFFFF" />
+              </View>
+              <View style={styles.csvButtonTextWrapper}>
+                <Text style={styles.csvButtonTitle}>Alumni Approvals</Text>
+                <Text style={styles.csvButtonSub}>Review & approve alumni USN mobile claims</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#10B981" />
+            </Pressable>
+
+            {/* Action 2: CSV Directory Importer */}
             <Pressable
               onPress={() => setShowCsvModal(true)}
               style={({ pressed }) => [styles.csvUploadButton, pressed && styles.pressed]}>
@@ -292,6 +309,12 @@ export function HomeScreenContent() {
       <CsvDirectoryImportModal
         visible={showCsvModal}
         onClose={() => setShowCsvModal(false)}
+      />
+
+      {/* Super Admin / Campus Admin Alumni Approval Modal */}
+      <AlumniApprovalModal
+        visible={showAlumniModal}
+        onClose={() => setShowAlumniModal(false)}
       />
     </View>
   );

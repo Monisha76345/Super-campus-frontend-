@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import React, { useEffect, useRef } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { useAuthSession } from '@/features/auth';
 import { Typography } from '@/constants/fonts';
 import { LandingHero } from './LandingHero';
 
@@ -12,14 +13,19 @@ import { LandingHero } from './LandingHero';
  */
 export function LandingScreenContent() {
   const router = useRouter();
+  const { user, isReady } = useAuthSession();
   const hasNavigated = useRef(false);
 
-  const openLogin = () => {
-    if (hasNavigated.current) {
+  const proceed = () => {
+    if (hasNavigated.current || !isReady) {
       return;
     }
     hasNavigated.current = true;
-    router.replace('/login');
+    if (user) {
+      router.replace('/home');
+    } else {
+      router.replace('/login');
+    }
   };
 
   const openReferral = (e?: any) => {
@@ -30,12 +36,13 @@ export function LandingScreenContent() {
   };
 
   useEffect(() => {
-    const timer = setTimeout(openLogin, 3200);
+    if (!isReady) return;
+    const timer = setTimeout(proceed, 2400);
     return () => clearTimeout(timer);
-  }, []);
+  }, [isReady, user]);
 
   return (
-    <Pressable onPress={openLogin} style={styles.container}>
+    <Pressable onPress={proceed} style={styles.container}>
       <LandingHero />
 
       <View style={styles.footerWrapper}>

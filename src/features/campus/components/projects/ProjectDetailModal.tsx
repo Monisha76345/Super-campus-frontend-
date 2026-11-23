@@ -64,7 +64,7 @@ export function ProjectDetailModal({
   const router = useRouter();
   const { user } = useAuthSession();
   const Colors = useColors();
-  const styles = createStyles(Colors);
+  const styles = useMemo(() => createStyles(Colors), [Colors]);
 
   const [updating, setUpdating] = useState(false);
   const [messaging, setMessaging] = useState(false);
@@ -126,30 +126,22 @@ export function ProjectDetailModal({
     });
   };
 
-  if (!project) return null;
-
-  const isOwner = project.creatorId === currentUserId;
-  const canManage = isOwner || isAdmin;
-
-  // Check support offerings
-  const hireStudents = project.supportNeeds?.find((s) => s.serviceType === 'HIRE_STUDENTS');
-  const hireMentor = project.supportNeeds?.find((s) => s.serviceType === 'HIRE_MENTOR');
-  const collegeFunding = project.supportNeeds?.find((s) => s.serviceType === 'COLLEGE_FUNDING');
-  const crowdfunding = project.supportNeeds?.find((s) => s.serviceType === 'CROWDFUNDING');
-  const hasFunding = !!collegeFunding || !!crowdfunding || (project.fundingTarget && project.fundingTarget > 0);
-
-  // Resolve attached PDF document from either project.pdfDocument or project.media
+  // Resolve attached PDF document from either project.pdfDocument or project.media (hook declared unconditionally at top level)
   const attachedPdf = useMemo(() => {
-    if (project?.pdfDocument?.uri) {
+    if (!project) return null;
+    if (project.pdfDocument?.uri) {
       return project.pdfDocument;
     }
-    const docMedia = project?.media?.find(
-      (m) =>
-        m.mediaType === 'DOCUMENT' ||
-        m.fileUrl?.toLowerCase().includes('.pdf') ||
-        m.fileName?.toLowerCase().endsWith('.pdf') ||
-        (m.fileUrl && m.fileUrl.includes('document-uploader')),
-    );
+    const docMedia = Array.isArray(project.media)
+      ? project.media.find(
+          (m) =>
+            m &&
+            (m.mediaType === 'DOCUMENT' ||
+              m.fileUrl?.toLowerCase().includes('.pdf') ||
+              m.fileName?.toLowerCase().endsWith('.pdf') ||
+              (m.fileUrl && m.fileUrl.includes('document-uploader'))),
+        )
+      : null;
     if (docMedia && docMedia.fileUrl) {
       return {
         name: docMedia.fileName || 'Project_Document.pdf',
@@ -158,6 +150,32 @@ export function ProjectDetailModal({
     }
     return null;
   }, [project]);
+
+  if (!visible || !project) return null;
+
+  const isOwner = project.creatorId === currentUserId;
+  const canManage = isOwner || isAdmin;
+
+  // Safe funding values
+  const target = Number(project.fundingTarget) || 0;
+  const raised = Number(project.fundingRaised) || 0;
+  const rawPercent = target > 0 ? Math.round((raised / target) * 100) : raised > 0 ? 100 : 0;
+  const progressPercent = Math.max(0, Math.min(100, isNaN(rawPercent) ? 0 : rawPercent));
+
+  // Check support offerings
+  const hireStudents = Array.isArray(project.supportNeeds)
+    ? project.supportNeeds.find((s) => s && s.serviceType === 'HIRE_STUDENTS')
+    : undefined;
+  const hireMentor = Array.isArray(project.supportNeeds)
+    ? project.supportNeeds.find((s) => s && s.serviceType === 'HIRE_MENTOR')
+    : undefined;
+  const collegeFunding = Array.isArray(project.supportNeeds)
+    ? project.supportNeeds.find((s) => s && s.serviceType === 'COLLEGE_FUNDING')
+    : undefined;
+  const crowdfunding = Array.isArray(project.supportNeeds)
+    ? project.supportNeeds.find((s) => s && s.serviceType === 'CROWDFUNDING')
+    : undefined;
+  const hasFunding = !!collegeFunding || !!crowdfunding || target > 0 || raised > 0;
 
   const resolveDocUrl = (rawUri: string): string => {
     if (
@@ -385,12 +403,15 @@ export function ProjectDetailModal({
   };
 
   const badge = getStatusBadge(project.status);
-  const target = project.fundingTarget || 0;
-  const raised = project.fundingRaised || 0;
-  const progressPercent = target > 0 ? Math.min(100, Math.round((raised / target) * 100)) : raised > 0 ? 100 : 0;
 
   return (
-    <Modal visible={visible} animationType="slide" transparent>
+    <>
+      <Modal
+        visible={visible}
+        animationType="slide"
+        transparent
+        onRequestClose={onClose}
+      >
       <View style={styles.overlay}>
         <View style={styles.sheet}>
           {/* Header */}
@@ -433,7 +454,7 @@ export function ProjectDetailModal({
               <View style={styles.creatorHeader}>
                 <View style={styles.creatorAvatarCircle}>
                   <Text style={styles.creatorAvatarText}>
-                    {(project.creatorName || 'C').charAt(0).toUpperCase()}
+                    {String(project.creatorName || 'C').charAt(0).toUpperCase()}
                   </Text>
                 </View>
                 <View style={styles.creatorInfoCol}>
@@ -665,15 +686,22 @@ export function ProjectDetailModal({
             )}
 
             {/* Skills */}
-            {project.skills && project.skills.length > 0 && (
+            {Array.isArray(project.skills) && project.skills.length > 0 && (
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Skills & Technologies</Text>
                 <View style={styles.skillsRow}>
-                  {project.skills.map((s, idx) => (
-                    <View key={idx} style={styles.skillPill}>
-                      <Text style={styles.skillText}>{s}</Text>
-                    </View>
-                  ))}
+                  {project.skills.map((s, idx) => {
+                    const skillName =
+                      typeof s === 'string'
+                        ? s
+                        : (s as any)?.skillName || (s as any)?.name || String(s || '');
+                    if (!skillName) return null;
+                    return (
+                      <View key={idx} style={styles.skillPill}>
+                        <Text style={styles.skillText}>{skillName}</Text>
+                      </View>
+                    );
+                  })}
                 </View>
               </View>
             )}
@@ -772,220 +800,253 @@ export function ProjectDetailModal({
           </ScrollView>
         </View>
       </View>
+    </Modal>
 
       {/* FUNDING MODAL */}
-      <Modal visible={showFundModal} animationType="slide" transparent>
-        <View style={styles.subModalOverlay}>
-          <View style={styles.subModalSheet}>
-            <View style={styles.subModalHeader}>
-              <Text style={styles.subModalTitle}>Support Project Funding</Text>
-              <Pressable onPress={() => setShowFundModal(false)}>
-                <Ionicons name="close" size={22} color={Colors.text.primary} />
+      {showFundModal && (
+        <Modal
+          visible={showFundModal}
+          animationType="slide"
+          transparent
+          onRequestClose={() => setShowFundModal(false)}
+        >
+          <View style={styles.subModalOverlay}>
+            <View style={styles.subModalSheet}>
+              <View style={styles.subModalHeader}>
+                <Text style={styles.subModalTitle}>Support Project Funding</Text>
+                <Pressable onPress={() => setShowFundModal(false)}>
+                  <Ionicons name="close" size={22} color={Colors.text.primary} />
+                </Pressable>
+              </View>
+
+              <Text style={styles.subModalSubtitle}>
+                Select amount to contribute to "{project.title}". All payments are verified on the campus ledger.
+              </Text>
+
+              {/* Preset Amount Chips */}
+              <View style={styles.presetAmountsRow}>
+                {['200', '500', '1000', '2500'].map((amt) => (
+                  <Pressable
+                    key={amt}
+                    style={[styles.presetChip, fundAmount === amt && styles.presetChipActive]}
+                    onPress={() => setFundAmount(amt)}
+                  >
+                    <Text style={[styles.presetChipText, fundAmount === amt && styles.presetChipTextActive]}>
+                      ₹{amt}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+
+              {/* Custom Amount Input */}
+              <View style={styles.amountInputRow}>
+                <Text style={styles.currencySymbol}>₹</Text>
+                <TextInput
+                  style={styles.amountInput}
+                  keyboardType="numeric"
+                  value={fundAmount}
+                  onChangeText={setFundAmount}
+                  placeholder="Custom Amount"
+                  placeholderTextColor={Colors.text.tertiary}
+                />
+              </View>
+
+              {/* Notes input */}
+              <TextInput
+                style={styles.notesInput}
+                value={fundNotes}
+                onChangeText={setFundNotes}
+                placeholder="Add an encouraging note or specify grant allocation..."
+                placeholderTextColor={Colors.text.tertiary}
+                multiline
+              />
+
+              <View style={styles.gatewayNotice}>
+                <Ionicons name="shield-checkmark" size={16} color="#10B981" />
+                <Text style={styles.gatewayNoticeText}>
+                  Secured Campus Gateway • Instant verification
+                </Text>
+              </View>
+
+              <Pressable
+                style={styles.confirmFundBtn}
+                onPress={handleConfirmFunding}
+                disabled={fundingLoading}
+              >
+                {fundingLoading ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.confirmFundBtnText}>Pay & Contribute ₹{fundAmount}</Text>
+                )}
               </Pressable>
             </View>
-
-            <Text style={styles.subModalSubtitle}>
-              Select amount to contribute to "{project.title}". All payments are verified on the campus ledger.
-            </Text>
-
-            {/* Preset Amount Chips */}
-            <View style={styles.presetAmountsRow}>
-              {['200', '500', '1000', '2500'].map((amt) => (
-                <Pressable
-                  key={amt}
-                  style={[styles.presetChip, fundAmount === amt && styles.presetChipActive]}
-                  onPress={() => setFundAmount(amt)}
-                >
-                  <Text style={[styles.presetChipText, fundAmount === amt && styles.presetChipTextActive]}>
-                    ₹{amt}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-
-            {/* Custom Amount Input */}
-            <View style={styles.amountInputRow}>
-              <Text style={styles.currencySymbol}>₹</Text>
-              <TextInput
-                style={styles.amountInput}
-                keyboardType="numeric"
-                value={fundAmount}
-                onChangeText={setFundAmount}
-                placeholder="Custom Amount"
-                placeholderTextColor={Colors.text.tertiary}
-              />
-            </View>
-
-            {/* Notes input */}
-            <TextInput
-              style={styles.notesInput}
-              value={fundNotes}
-              onChangeText={setFundNotes}
-              placeholder="Add an encouraging note or specify grant allocation..."
-              placeholderTextColor={Colors.text.tertiary}
-              multiline
-            />
-
-            <View style={styles.gatewayNotice}>
-              <Ionicons name="shield-checkmark" size={16} color="#10B981" />
-              <Text style={styles.gatewayNoticeText}>
-                Secured Campus Gateway • Instant verification
-              </Text>
-            </View>
-
-            <Pressable
-              style={styles.confirmFundBtn}
-              onPress={handleConfirmFunding}
-              disabled={fundingLoading}
-            >
-              {fundingLoading ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              ) : (
-                <Text style={styles.confirmFundBtnText}>Pay & Contribute ₹{fundAmount}</Text>
-              )}
-            </Pressable>
           </View>
-        </View>
-      </Modal>
+        </Modal>
+      )}
 
       {/* APPLICATION MODAL */}
-      <Modal visible={showApplyModal} animationType="slide" transparent>
-        <View style={styles.subModalOverlay}>
-          <View style={styles.subModalSheet}>
-            <View style={styles.subModalHeader}>
-              <Text style={styles.subModalTitle}>Apply for Project Role</Text>
-              <Pressable onPress={() => setShowApplyModal(false)}>
-                <Ionicons name="close" size={22} color={Colors.text.primary} />
+      {showApplyModal && (
+        <Modal
+          visible={showApplyModal}
+          animationType="slide"
+          transparent
+          onRequestClose={() => setShowApplyModal(false)}
+        >
+          <View style={styles.subModalOverlay}>
+            <View style={styles.subModalSheet}>
+              <View style={styles.subModalHeader}>
+                <Text style={styles.subModalTitle}>Apply for Project Role</Text>
+                <Pressable onPress={() => setShowApplyModal(false)}>
+                  <Ionicons name="close" size={22} color={Colors.text.primary} />
+                </Pressable>
+              </View>
+
+              <Text style={styles.subModalSubtitle}>
+                Send your profile and statement of interest to {project.creatorName || 'the project lead'}.
+              </Text>
+
+              <Text style={styles.fieldLabel}>Role you are applying for</Text>
+              <TextInput
+                style={styles.inputField}
+                value={selectedRole}
+                onChangeText={setSelectedRole}
+                placeholder="e.g. Frontend Developer, ML Researcher"
+                placeholderTextColor={Colors.text.tertiary}
+              />
+
+              <Text style={styles.fieldLabel}>Message / Relevant Experience</Text>
+              <TextInput
+                style={[styles.inputField, { height: 90, textAlignVertical: 'top' }]}
+                value={applyMessage}
+                onChangeText={setApplyMessage}
+                placeholder="Why are you interested? Mention your relevant tech stack or experience..."
+                placeholderTextColor={Colors.text.tertiary}
+                multiline
+              />
+
+              <Pressable
+                style={styles.confirmApplyBtn}
+                onPress={handleConfirmApply}
+                disabled={applyingLoading}
+              >
+                {applyingLoading ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.confirmApplyBtnText}>Submit Application</Text>
+                )}
               </Pressable>
             </View>
-
-            <Text style={styles.subModalSubtitle}>
-              Send your profile and statement of interest to {project.creatorName || 'the project lead'}.
-            </Text>
-
-            <Text style={styles.fieldLabel}>Role you are applying for</Text>
-            <TextInput
-              style={styles.inputField}
-              value={selectedRole}
-              onChangeText={setSelectedRole}
-              placeholder="e.g. Frontend Developer, ML Researcher"
-              placeholderTextColor={Colors.text.tertiary}
-            />
-
-            <Text style={styles.fieldLabel}>Message / Relevant Experience</Text>
-            <TextInput
-              style={[styles.inputField, { height: 90, textAlignVertical: 'top' }]}
-              value={applyMessage}
-              onChangeText={setApplyMessage}
-              placeholder="Why are you interested? Mention your relevant tech stack or experience..."
-              placeholderTextColor={Colors.text.tertiary}
-              multiline
-            />
-
-            <Pressable
-              style={styles.confirmApplyBtn}
-              onPress={handleConfirmApply}
-              disabled={applyingLoading}
-            >
-              {applyingLoading ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              ) : (
-                <Text style={styles.confirmApplyBtnText}>Submit Application</Text>
-              )}
-            </Pressable>
           </View>
-        </View>
-      </Modal>
+        </Modal>
+      )}
 
       {/* VIEW APPLICANTS MODAL */}
-      <Modal visible={showApplicantsModal} animationType="slide" transparent>
-        <View style={styles.subModalOverlay}>
-          <View style={styles.subModalSheet}>
-            <View style={styles.subModalHeader}>
-              <Text style={styles.subModalTitle}>Team Applicants ({applicantsList.length})</Text>
-              <Pressable onPress={() => setShowApplicantsModal(false)}>
-                <Ionicons name="close" size={22} color={Colors.text.primary} />
-              </Pressable>
-            </View>
+      {showApplicantsModal && (
+        <Modal
+          visible={showApplicantsModal}
+          animationType="slide"
+          transparent
+          onRequestClose={() => setShowApplicantsModal(false)}
+        >
+          <View style={styles.subModalOverlay}>
+            <View style={styles.subModalSheet}>
+              <View style={styles.subModalHeader}>
+                <Text style={styles.subModalTitle}>Team Applicants ({applicantsList.length})</Text>
+                <Pressable onPress={() => setShowApplicantsModal(false)}>
+                  <Ionicons name="close" size={22} color={Colors.text.primary} />
+                </Pressable>
+              </View>
 
-            {loadingApplicants ? (
-              <ActivityIndicator size="small" color={Colors.primary.accent} style={{ padding: 20 }} />
-            ) : applicantsList.length === 0 ? (
-              <Text style={styles.emptyListText}>No applications received yet.</Text>
-            ) : (
-              <ScrollView style={{ maxHeight: 340 }}>
-                {applicantsList.map((app) => (
-                  <View key={app.id} style={styles.applicantRow}>
-                    <View style={styles.applicantAvatar}>
-                      <Text style={styles.applicantAvatarText}>{app.applicantName.charAt(0)}</Text>
+              {loadingApplicants ? (
+                <ActivityIndicator size="small" color={Colors.primary.accent} style={{ padding: 20 }} />
+              ) : applicantsList.length === 0 ? (
+                <Text style={styles.emptyListText}>No applications received yet.</Text>
+              ) : (
+                <ScrollView style={{ maxHeight: 340 }}>
+                  {applicantsList.map((app) => (
+                    <View key={app.id} style={styles.applicantRow}>
+                      <View style={styles.applicantAvatar}>
+                        <Text style={styles.applicantAvatarText}>
+                          {String(app.applicantName || 'A').charAt(0).toUpperCase()}
+                        </Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.applicantNameText}>{app.applicantName}</Text>
+                        <Text style={styles.applicantRoleText}>
+                          Role: {app.roleApplied} {app.applicantUsn ? `• ${app.applicantUsn}` : ''}
+                        </Text>
+                        {app.message ? (
+                          <Text style={styles.applicantMessageText}>"{app.message}"</Text>
+                        ) : null}
+                      </View>
                     </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.applicantNameText}>{app.applicantName}</Text>
-                      <Text style={styles.applicantRoleText}>
-                        Role: {app.roleApplied} {app.applicantUsn ? `• ${app.applicantUsn}` : ''}
-                      </Text>
-                      {app.message ? (
-                        <Text style={styles.applicantMessageText}>"{app.message}"</Text>
-                      ) : null}
-                    </View>
-                  </View>
-                ))}
-              </ScrollView>
-            )}
+                  ))}
+                </ScrollView>
+              )}
+            </View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
+      )}
 
       {/* VIEW BACKERS MODAL */}
-      <Modal visible={showBackersModal} animationType="slide" transparent>
-        <View style={styles.subModalOverlay}>
-          <View style={styles.subModalSheet}>
-            <View style={styles.subModalHeader}>
-              <Text style={styles.subModalTitle}>Project Backers ({backersList.length})</Text>
-              <Pressable onPress={() => setShowBackersModal(false)}>
-                <Ionicons name="close" size={22} color={Colors.text.primary} />
-              </Pressable>
-            </View>
+      {showBackersModal && (
+        <Modal
+          visible={showBackersModal}
+          animationType="slide"
+          transparent
+          onRequestClose={() => setShowBackersModal(false)}
+        >
+          <View style={styles.subModalOverlay}>
+            <View style={styles.subModalSheet}>
+              <View style={styles.subModalHeader}>
+                <Text style={styles.subModalTitle}>Project Backers ({backersList.length})</Text>
+                <Pressable onPress={() => setShowBackersModal(false)}>
+                  <Ionicons name="close" size={22} color={Colors.text.primary} />
+                </Pressable>
+              </View>
 
-            {loadingBackers ? (
-              <ActivityIndicator size="small" color={Colors.primary.accent} style={{ padding: 20 }} />
-            ) : backersList.length === 0 ? (
-              <Text style={styles.emptyListText}>No funding contributions yet.</Text>
-            ) : (
-              <ScrollView style={{ maxHeight: 340 }}>
-                {backersList.map((b) => (
-                  <View key={b.id} style={styles.backerRow}>
-                    <View style={styles.backerIcon}>
-                      <Ionicons name="wallet-outline" size={18} color="#10B981" />
+              {loadingBackers ? (
+                <ActivityIndicator size="small" color={Colors.primary.accent} style={{ padding: 20 }} />
+              ) : backersList.length === 0 ? (
+                <Text style={styles.emptyListText}>No funding contributions yet.</Text>
+              ) : (
+                <ScrollView style={{ maxHeight: 340 }}>
+                  {backersList.map((b) => (
+                    <View key={b.id} style={styles.backerRow}>
+                      <View style={styles.backerIcon}>
+                        <Ionicons name="wallet-outline" size={18} color="#10B981" />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.backerNameText}>{b.contributorName}</Text>
+                        <Text style={styles.backerDetailsText}>
+                          {b.fundingType === 'COLLEGE_FUNDING' ? 'College Grant' : 'Crowdfunding'} • Txn: {b.transactionId}
+                        </Text>
+                      </View>
+                      <Text style={styles.backerAmountText}>+₹{Number(b.amount || 0).toLocaleString('en-IN')}</Text>
                     </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.backerNameText}>{b.contributorName}</Text>
-                      <Text style={styles.backerDetailsText}>
-                        {b.fundingType === 'COLLEGE_FUNDING' ? 'College Grant' : 'Crowdfunding'} • Txn: {b.transactionId}
-                      </Text>
-                    </View>
-                    <Text style={styles.backerAmountText}>+₹{b.amount.toLocaleString('en-IN')}</Text>
-                  </View>
-                ))}
-              </ScrollView>
-            )}
+                  ))}
+                </ScrollView>
+              )}
+            </View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
+      )}
 
       {/* Unified App Message Modal */}
-      <AppMessageModal
-        visible={modalConfig.visible}
-        type={modalConfig.type}
-        title={modalConfig.title}
-        message={modalConfig.message}
-        primaryButtonText={modalConfig.primaryButtonText}
-        secondaryButtonText={modalConfig.secondaryButtonText}
-        onPrimaryPress={modalConfig.onPrimaryPress}
-        onSecondaryPress={modalConfig.onSecondaryPress}
-        onClose={() => setModalConfig((prev) => ({ ...prev, visible: false }))}
-      />
-    </Modal>
+      {modalConfig.visible && (
+        <AppMessageModal
+          visible={modalConfig.visible}
+          type={modalConfig.type}
+          title={modalConfig.title}
+          message={modalConfig.message}
+          primaryButtonText={modalConfig.primaryButtonText}
+          secondaryButtonText={modalConfig.secondaryButtonText}
+          onPrimaryPress={modalConfig.onPrimaryPress}
+          onSecondaryPress={modalConfig.onSecondaryPress}
+          onClose={() => setModalConfig((prev) => ({ ...prev, visible: false }))}
+        />
+      )}
+    </>
   );
 }
 

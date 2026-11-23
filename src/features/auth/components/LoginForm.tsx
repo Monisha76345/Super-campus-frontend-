@@ -11,6 +11,7 @@ import { Typography } from '@/constants/fonts';
 
 import { authApi } from '../api/authApi';
 import { useLogin } from '../hooks/useLogin';
+import { useAuthSession } from '../session/AuthSessionProvider';
 import { AuthHeader } from './AuthHeader';
 import { SocialLoginRow } from './SocialLoginRow';
 import { ReferralInputSection } from '@/features/referral';
@@ -21,11 +22,24 @@ export function LoginForm() {
   const styles = useMemo(() => createStyles(Colors), [Colors]);
   const router = useRouter();
   const params = useLocalSearchParams<{ ref?: string; openReferral?: string }>();
+  const { user, isReady, signIn } = useAuthSession();
   const [alumniMode, setAlumniMode] = React.useState(false);
+  const [alumniSubMode, setAlumniSubMode] = React.useState<'claim' | 'verify'>('claim');
   const [usn, setUsn] = React.useState('');
   const [mobile, setMobile] = React.useState('');
+  const [otp, setOtp] = React.useState('');
+  const [newPassword, setNewPassword] = React.useState('');
+  const [otpSent, setOtpSent] = React.useState(false);
   const [claimError, setClaimError] = React.useState<string | null>(null);
   const [claiming, setClaiming] = React.useState(false);
+
+  // If already logged in with an active 7-day session, route directly to home
+  React.useEffect(() => {
+    if (isReady && user) {
+      router.replace('/home');
+    }
+  }, [isReady, user, router]);
+
   const {
     email,
     setEmail,
@@ -58,10 +72,71 @@ export function LoginForm() {
     setClaiming(true);
     try {
       await authApi.claimAlumni(usn, mobile);
-      Alert.alert('Submitted', 'An admin will verify this USN and mobile number.');
-      setAlumniMode(false);
-    } catch (err) {
-      setClaimError(err instanceof Error ? err.message : 'Could not submit the alumni request');
+      Alert.alert('Submitted 🎉', 'An admin will verify this USN and mobile number. Once approved, return here to activate your account.');
+      setAlumniSubMode('verify');
+    } catch (err: any) {
+      const msg = err instanceof Error ? err.message : String(err || '');
+      if (msg.includes('already approved')) {
+        Alert.alert('Already Approved! ✨', 'Your alumni account is already approved. Request a code to activate and set your password.');
+        setAlumniSubMode('verify');
+      } else {
+        setClaimError(msg || 'Could not submit the alumni request');
+      }
+    } finally {
+      setClaiming(false);
+    }
+  };
+
+  const onRequestAlumniOtp = async () => {
+    setClaimError(null);
+    if (!/^[a-zA-Z0-9]{5,32}$/.test(usn.trim())) {
+      setClaimError('Enter your valid alumni USN');
+      return;
+    }
+    if (mobile.replace(/\D/g, '').length < 10) {
+      setClaimError('Enter your verified 10-digit mobile number');
+      return;
+    }
+    setClaiming(true);
+    try {
+      const res = await authApi.requestAlumniOtp(usn, mobile);
+      setOtpSent(true);
+      if (res?.debugOtp) {
+        setOtp(res.debugOtp);
+        Alert.alert('Code Sent! 📲', `A verification code has been generated.\n\nCode: ${res.debugOtp}`);
+      } else {
+        Alert.alert('Code Sent! 📲', `A verification code has been sent to your registered mobile number ending in ${res?.destination?.slice(-4) || 'phone'}.`);
+      }
+    } catch (err: any) {
+      setClaimError(err?.message || 'Could not send verification code. Ensure your claim was approved by admin.');
+    } finally {
+      setClaiming(false);
+    }
+  };
+
+  const onVerifyAlumni = async () => {
+    setClaimError(null);
+    if (!otp.trim()) {
+      setClaimError('Please enter the 6-digit verification code');
+      return;
+    }
+    if (newPassword.length < 6) {
+      setClaimError('Password must be at least 6 characters');
+      return;
+    }
+    setClaiming(true);
+    try {
+      const userSession = await authApi.verifyAlumniAndSetPassword({
+        usn,
+        mobile,
+        otp,
+        password: newPassword,
+      });
+      await signIn(userSession, true);
+      Alert.alert('Welcome Back! 🎓', 'Your alumni account has been activated.');
+      router.replace('/home');
+    } catch (err: any) {
+      setClaimError(err?.message || 'Verification failed. Please check the code.');
     } finally {
       setClaiming(false);
     }
@@ -81,6 +156,31 @@ export function LoginForm() {
       <AuthHeader />
 
       <Card style={styles.card}>
+        {alumniMode && (
+          <View style={styles.alumniTabSelector}>
+            <Pressable
+              onPress={() => {
+                setAlumniSubMode('claim');
+                setClaimError(null);
+              }}
+              style={[styles.alumniTab, alumniSubMode === 'claim' && styles.alumniTabActive]}>
+              <Text style={[styles.alumniTabText, alumniSubMode === 'claim' && styles.alumniTabTextActive]}>
+                1. New Claim
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                setAlumniSubMode('verify');
+                setClaimError(null);
+              }}
+              style={[styles.alumniTab, alumniSubMode === 'verify' && styles.alumniTabActive]}>
+              <Text style={[styles.alumniTabText, alumniSubMode === 'verify' && styles.alumniTabTextActive]}>
+                2. Activate Account
+              </Text>
+            </Pressable>
+          </View>
+        )}
+
         {(alumniMode ? claimError : serverError) && (
           <View style={styles.errorBanner}>
             <Text style={styles.errorBannerText}>{alumniMode ? claimError : serverError}</Text>
@@ -88,81 +188,126 @@ export function LoginForm() {
         )}
 
         {alumniMode ? (
-          <Input
-            label="Alumni USN"
-            placeholder="1NT18CS001"
-            leftIcon="school-outline"
-            autoCapitalize="characters"
-            autoCorrect={false}
-            autoComplete="off"
-            importantForAutofill="no"
-            textContentType="none"
-            value={usn}
-            onChangeText={setUsn}
-          />
+          <>
+            <Input
+              label="Alumni USN"
+              placeholder="1NT18CS001"
+              leftIcon="school-outline"
+              autoCapitalize="characters"
+              autoCorrect={false}
+              autoComplete="off"
+              importantForAutofill="no"
+              textContentType="none"
+              value={usn}
+              onChangeText={setUsn}
+            />
+
+            <Input
+              label="Mobile number"
+              placeholder="9876543210"
+              leftIcon="call-outline"
+              keyboardType="phone-pad"
+              autoComplete="off"
+              importantForAutofill="no"
+              textContentType="none"
+              value={mobile}
+              onChangeText={setMobile}
+            />
+
+            {alumniSubMode === 'verify' && otpSent && (
+              <>
+                <Input
+                  label="6-Digit Verification Code"
+                  placeholder="Enter code received"
+                  leftIcon="key-outline"
+                  keyboardType="number-pad"
+                  autoComplete="off"
+                  value={otp}
+                  onChangeText={setOtp}
+                />
+
+                <Input
+                  label="Create New Password"
+                  placeholder="At least 6 characters"
+                  leftIcon="lock-closed-outline"
+                  isPassword
+                  autoCapitalize="none"
+                  autoComplete="off"
+                  value={newPassword}
+                  onChangeText={setNewPassword}
+                />
+              </>
+            )}
+          </>
         ) : (
-          <Input
-            label="USN / Username"
-            placeholder="1NT22AD015 or student@nmit.ac.in"
-            leftIcon="person-outline"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoCorrect={false}
-            autoComplete="off"
-            importantForAutofill="no"
-            textContentType="none"
-            value={email}
-            onChangeText={setEmail}
-            error={errors.email}
-          />
+          <>
+            <Input
+              label="USN / Username"
+              placeholder="1NT22AD015 or student@nmit.ac.in"
+              leftIcon="person-outline"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="off"
+              importantForAutofill="no"
+              textContentType="none"
+              value={email}
+              onChangeText={setEmail}
+              error={errors.email}
+            />
+
+            <Input
+              label="Password"
+              placeholder="Enter your password"
+              leftIcon="lock-closed-outline"
+              isPassword
+              autoCapitalize="none"
+              autoComplete="off"
+              importantForAutofill="no"
+              textContentType="none"
+              value={password}
+              onChangeText={setPassword}
+              error={errors.password}
+            />
+          </>
         )}
 
-        {alumniMode ? (
-          <Input
-            label="Mobile number"
-            placeholder="9876543210"
-            leftIcon="call-outline"
-            keyboardType="phone-pad"
-            autoComplete="off"
-            importantForAutofill="no"
-            textContentType="none"
-            value={mobile}
-            onChangeText={setMobile}
-          />
-        ) : (
-          <Input
-            label="Password"
-            placeholder="Enter your password"
-            leftIcon="lock-closed-outline"
-            isPassword
-            autoCapitalize="none"
-            autoComplete="off"
-            importantForAutofill="no"
-            textContentType="none"
-            value={password}
-            onChangeText={setPassword}
-            error={errors.password}
-          />
+        {/* Options Row: Remember Me & Forgot Password (Only on standard login) */}
+        {!alumniMode && (
+          <View style={styles.optionsRow}>
+            <Checkbox label="Remember me" checked={rememberMe} onToggle={setRememberMe} />
+
+            <Pressable
+              onPress={() => router.push('/(auth)/forgot-password')}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Text style={styles.forgotPasswordText}>Forgot password?</Text>
+            </Pressable>
+          </View>
         )}
 
-        {/* Options Row: Remember Me & Forgot Password */}
-        <View style={styles.optionsRow}>
-          <Checkbox label="Remember me" checked={rememberMe} onToggle={setRememberMe} />
-
-          <Pressable
-            onPress={() => router.push('/(auth)/forgot-password')}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Text style={styles.forgotPasswordText}>Forgot password?</Text>
-          </Pressable>
-        </View>
-
-        {/* Primary Sign In Button */}
+        {/* Action Button */}
         <Button
-          title={alumniMode ? 'Submit for approval' : 'Sign In to Portal'}
+          title={
+            !alumniMode
+              ? 'Sign In to Portal'
+              : alumniSubMode === 'claim'
+                ? 'Submit for Approval'
+                : !otpSent
+                  ? 'Request Verification Code'
+                  : 'Activate & Sign In'
+          }
           variant="primary"
           size="lg"
           loading={alumniMode ? claiming : isLoading}
-          onPress={alumniMode ? onClaimPress : onLoginPress}
+          onPress={
+            !alumniMode
+              ? onLoginPress
+              : alumniSubMode === 'claim'
+                ? onClaimPress
+                : !otpSent
+                  ? onRequestAlumniOtp
+                  : onVerifyAlumni
+          }
           style={styles.signInButton}
         />
 
@@ -185,11 +330,12 @@ export function LoginForm() {
           onPress={() => {
             setAlumniMode((current) => !current);
             setClaimError(null);
+            setOtpSent(false);
           }}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           style={styles.alumniSwitch}>
           <Text style={styles.forgotPasswordText}>
-            {alumniMode ? 'College login with USN / email' : 'Alumni? Submit USN and mobile'}
+            {alumniMode ? 'Back to standard login (USN / Password)' : 'Alumni portal (Claim or Activate)'}
           </Text>
         </Pressable>
 
@@ -230,6 +376,33 @@ function createStyles(Colors: ColorTokens) {
     },
     card: {
       padding: 24,
+    },
+    alumniTabSelector: {
+      flexDirection: 'row',
+      backgroundColor: 'rgba(15, 23, 42, 0.6)',
+      borderWidth: 1,
+      borderColor: Colors.border.subtle,
+      borderRadius: 10,
+      padding: 3,
+      marginBottom: 16,
+    },
+    alumniTab: {
+      flex: 1,
+      paddingVertical: 8,
+      alignItems: 'center',
+      borderRadius: 8,
+    },
+    alumniTabActive: {
+      backgroundColor: '#2563EB',
+    },
+    alumniTabText: {
+      fontFamily: Typography.medium,
+      fontSize: 12,
+      color: Colors.text.secondary,
+    },
+    alumniTabTextActive: {
+      fontFamily: Typography.bold,
+      color: '#FFFFFF',
     },
     errorBanner: {
       backgroundColor: Colors.status.errorBackground,

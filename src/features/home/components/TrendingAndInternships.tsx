@@ -95,12 +95,7 @@ export function TrendingAndInternships() {
 
         {/* Internship Card 1 */}
         <Pressable
-          onPress={() =>
-            Alert.alert(
-              'Application Info',
-              'Frontend Developer Intern @ Razorpay Labs\nStipend: ₹35,000/mo\nRole: React Native & Web\nApplications open till Oct 10.'
-            )
-          }
+          onPress={() => router.push({ pathname: '/connect', params: { tab: 'internships' } })}
           style={({ pressed }) => [styles.internshipCard, pressed && styles.cardPressed]}>
           <View style={styles.cardHeaderSmall}>
             <View style={styles.briefcaseIconBox}>
@@ -122,12 +117,7 @@ export function TrendingAndInternships() {
 
         {/* Internship Card 2 */}
         <Pressable
-          onPress={() =>
-            Alert.alert(
-              'Application Info',
-              `UI/UX Design Fellow @ ${campusName} Incubation Center\nStipend: ₹20,000/mo\nRole: Figma & Mobile Design\nApplications open till Oct 15.`
-            )
-          }
+          onPress={() => router.push({ pathname: '/connect', params: { tab: 'internships' } })}
           style={({ pressed }) => [styles.internshipCard, pressed && styles.cardPressed]}>
           <View style={styles.cardHeaderSmall}>
             <View style={[styles.briefcaseIconBox, { backgroundColor: 'rgba(14, 165, 233, 0.2)' }]}>
@@ -145,6 +135,14 @@ export function TrendingAndInternships() {
             Campus Incubator
           </Text>
           <Text style={styles.internshipMeta}>On-campus • Flexible</Text>
+        </Pressable>
+
+        {/* View All Internships Link */}
+        <Pressable
+          onPress={() => router.push({ pathname: '/connect', params: { tab: 'internships' } })}
+          style={({ pressed }) => [styles.seeAllBtn, pressed && styles.pressed]}>
+          <Text style={[styles.seeAllText, { color: '#38BDF8' }]}>Explore internships</Text>
+          <Ionicons name="arrow-forward" size={13} color="#38BDF8" />
         </Pressable>
       </View>
     </View>

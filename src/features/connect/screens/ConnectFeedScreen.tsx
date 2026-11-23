@@ -1,10 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   FlatList,
   Image,
+  Linking,
   Modal,
   Pressable,
   RefreshControl,
@@ -20,6 +22,7 @@ import { ColorTokens } from '@/constants/colors';
 import { Typography } from '@/constants/fonts';
 import { useAppTheme } from '@/theme/app-theme';
 import { useAuthSession } from '@/features/auth';
+import { startDirectChatApi } from '@/features/chat/chat-api';
 import {
   CampusClub,
   CampusEvent,
@@ -76,6 +79,12 @@ export function ConnectFeedScreen({
     roleNorm === 'superadmin' ||
     roleNorm === 'campusadmin';
 
+  const canCreateClub =
+    roleNorm === 'admin' ||
+    roleNorm === 'superadmin' ||
+    roleNorm === 'campusadmin' ||
+    roleNorm === 'faculty';
+
   const [activeTab, setActiveTab] = useState<ConnectTab>(initialTab);
   const [events, setEvents] = useState<CampusEvent[]>([]);
   const [clubs, setClubs] = useState<CampusClub[]>([]);
@@ -90,6 +99,68 @@ export function ConnectFeedScreen({
   const [applicantUsn, setApplicantUsn] = useState('');
   const [applicantNote, setApplicantNote] = useState('');
   const [isSubmittingApp, setIsSubmittingApp] = useState(false);
+  const [messagingOpportunityId, setMessagingOpportunityId] = useState<string | null>(null);
+  const router = useRouter();
+
+  const getInitials = (name?: string | null) => {
+    if (!name) return 'CR';
+    const parts = name.trim().split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+    return name.slice(0, 2).toUpperCase();
+  };
+
+  const handleMessagePoster = async (item: CampusOpportunity) => {
+    if (user?.id && item.createdBy && user.id === item.createdBy) {
+      Alert.alert(
+        'Your Internship Posting',
+        'You are the creator of this internship posting. Student inquiries and applications will appear in your Inbox.',
+        [
+          { text: 'Close', style: 'cancel' },
+          { text: 'Open Inbox', onPress: () => router.push('/inbox') },
+        ],
+      );
+      return;
+    }
+
+    const fallbackAdminId = '22222222-2222-4222-8222-222222222224';
+    const recipientId =
+      item.createdBy && item.createdBy !== 'system' ? item.createdBy : fallbackAdminId;
+    const recipientName =
+      item.creatorName || (item.company ? `${item.company} Recruiter` : 'Placement & Career Cell');
+
+    setMessagingOpportunityId(item.id);
+    try {
+      if (token && tenantId) {
+        const thread = await startDirectChatApi(token, tenantId, recipientId);
+        router.push({
+          pathname: '/inbox',
+          params: {
+            threadId: thread.id,
+            recipientId,
+            recipientName,
+            opportunityTitle: item.title,
+            opportunityCompany: item.company,
+          },
+        });
+        return;
+      }
+    } catch (err: any) {
+      console.warn('Direct chat start notice:', err);
+    } finally {
+      setMessagingOpportunityId(null);
+    }
+
+    // Always route to inbox with pre-filled context so student can immediately chat
+    router.push({
+      pathname: '/inbox',
+      params: {
+        recipientId,
+        recipientName,
+        opportunityTitle: item.title,
+        opportunityCompany: item.company,
+      },
+    });
+  };
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -238,6 +309,29 @@ export function ConnectFeedScreen({
       <Text style={styles.cardTitle}>{item.title}</Text>
       <Text style={styles.cardDescription}>{item.description}</Text>
 
+      {/* Poster Attribution Row */}
+      <View style={styles.posterRow}>
+        <View style={styles.posterAvatarCircle}>
+          <Text style={styles.posterAvatarText}>{getInitials(item.creatorName || item.company)}</Text>
+        </View>
+        <View style={styles.posterInfo}>
+          <Text style={styles.posterName} numberOfLines={1}>
+            {item.creatorName || item.company}
+          </Text>
+          <Text style={styles.posterRole} numberOfLines={1}>
+            {item.creatorRole ? `${item.creatorRole.replace(/_/g, ' ')} • Poster` : 'Campus Recruiter'}
+          </Text>
+        </View>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Message ${item.creatorName || item.company}`}
+          onPress={() => handleMessagePoster(item)}
+          hitSlop={8}
+          style={styles.posterChatIconBtn}>
+          <Ionicons name="chatbubble-ellipses" size={17} color="#38BDF8" />
+        </Pressable>
+      </View>
+
       {/* Attached Document Pill if available */}
       {item.documentName ? (
         <Pressable
@@ -266,9 +360,25 @@ export function ConnectFeedScreen({
         ) : null}
       </View>
 
-      {/* Apply Button */}
-      <View style={styles.applyActionRow}>
+      {/* Action Buttons: Message Poster & Apply Now */}
+      <View style={styles.opportunityActionsRow}>
         <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Message owner or recruiter"
+          onPress={() => handleMessagePoster(item)}
+          disabled={messagingOpportunityId === item.id}
+          style={({ pressed }) => [styles.messagePosterBtn, pressed && { opacity: 0.8 }]}>
+          {messagingOpportunityId === item.id ? (
+            <ActivityIndicator size="small" color="#38BDF8" style={{ marginRight: 6 }} />
+          ) : (
+            <Ionicons name="chatbubble-ellipses-outline" size={15} color="#38BDF8" style={{ marginRight: 6 }} />
+          )}
+          <Text style={styles.messagePosterBtnText}>Message</Text>
+        </Pressable>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Apply to opportunity"
           onPress={() => {
             setApplicantUsn(user?.email?.split('@')[0]?.toUpperCase() || '');
             setApplyingOpportunity(item);
@@ -290,8 +400,9 @@ export function ConnectFeedScreen({
   // Determine if post button should show
   const showPostButton = useMemo(() => {
     if (activeTab === 'jobs') return canPostJob;
-    return true; // events, clubs, and internships are open to campus
-  }, [activeTab, canPostJob]);
+    if (activeTab === 'clubs') return canCreateClub;
+    return true; // events and internships are open to campus
+  }, [activeTab, canPostJob, canCreateClub]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + 6 }]}>
@@ -463,6 +574,24 @@ export function ConnectFeedScreen({
                 style={[styles.appInput, { height: 75, textAlignVertical: 'top' }]}
               />
             </View>
+
+            {/* Quick Message Link in Modal */}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Message recruiter directly"
+              onPress={() => {
+                const target = applyingOpportunity;
+                setApplyingOpportunity(null);
+                if (target) {
+                  handleMessagePoster(target);
+                }
+              }}
+              style={styles.askQuestionRow}>
+              <Ionicons name="chatbubbles-outline" size={15} color="#38BDF8" style={{ marginRight: 6 }} />
+              <Text style={styles.askQuestionText}>
+                Need to ask questions first? <Text style={{ color: '#38BDF8', fontWeight: '700' }}>Message Recruiter</Text>
+              </Text>
+            </Pressable>
 
             <View style={styles.appActionsRow}>
               <Pressable
@@ -706,13 +835,34 @@ function createStyles(Colors: ColorTokens, isDark: boolean) {
       color: '#10B981',
       fontWeight: '700',
     },
-    applyActionRow: {
+    opportunityActionsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
       marginTop: 10,
-      paddingTop: 8,
+      paddingTop: 10,
       borderTopWidth: 1,
       borderTopColor: isDark ? '#1E293B' : 'rgba(15, 23, 42, 0.06)',
     },
+    messagePosterBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: isDark ? 'rgba(56, 189, 248, 0.12)' : 'rgba(37, 99, 235, 0.08)',
+      height: 38,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(56, 189, 248, 0.3)' : 'rgba(37, 99, 235, 0.2)',
+    },
+    messagePosterBtnText: {
+      fontFamily: Typography.bold,
+      fontSize: 13,
+      color: '#38BDF8',
+      fontWeight: '700',
+    },
     applyBtn: {
+      flex: 1,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
@@ -725,6 +875,63 @@ function createStyles(Colors: ColorTokens, isDark: boolean) {
       fontSize: 13,
       color: '#FFFFFF',
       fontWeight: '700',
+    },
+    posterRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      backgroundColor: isDark ? 'rgba(30, 41, 59, 0.5)' : '#F8FAFC',
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 12,
+      marginBottom: 10,
+      borderWidth: 1,
+      borderColor: isDark ? '#1E293B' : 'rgba(15, 23, 42, 0.06)',
+    },
+    posterAvatarCircle: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: isDark ? 'rgba(56, 189, 248, 0.2)' : 'rgba(37, 99, 235, 0.15)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    posterAvatarText: {
+      fontFamily: Typography.bold,
+      fontSize: 12,
+      fontWeight: '700',
+      color: '#38BDF8',
+    },
+    posterInfo: {
+      flex: 1,
+    },
+    posterName: {
+      fontFamily: Typography.semiBold,
+      fontSize: 12.5,
+      color: Colors.text.primary,
+    },
+    posterRole: {
+      fontFamily: Typography.regular,
+      fontSize: 11,
+      color: Colors.text.secondary,
+    },
+    posterChatIconBtn: {
+      padding: 6,
+      borderRadius: 8,
+      backgroundColor: isDark ? 'rgba(56, 189, 248, 0.12)' : 'rgba(37, 99, 235, 0.08)',
+    },
+    askQuestionRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: 8,
+      marginBottom: 6,
+      paddingVertical: 6,
+    },
+    askQuestionText: {
+      fontFamily: Typography.regular,
+      fontSize: 12.5,
+      color: Colors.text.secondary,
     },
     clubCard: {
       borderWidth: 1,

@@ -12,7 +12,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo } from 'react';
 import { BackHandler, Platform } from 'react-native';
 
-import { AuthSessionProvider } from '@/features/auth';
+import { AuthSessionProvider, useAuthSession } from '@/features/auth';
 import { usePushNotifications } from '@/features/notifications/hooks/usePushNotifications';
 import { AppThemeProvider, useAppTheme } from '@/theme/app-theme';
 import { AlertModalProvider } from '@/components/ui';
@@ -48,7 +48,25 @@ function RootNavigator() {
   const { colors, scheme } = useAppTheme();
   const pathname = usePathname();
   const router = useRouter();
+  const { user, isReady } = useAuthSession();
   usePushNotifications();
+
+  // Route protection: If session expired or logged out on a protected screen, redirect to login
+  useEffect(() => {
+    if (!isReady) return;
+
+    const isPublicRoute =
+      pathname === '/' ||
+      pathname === '/index' ||
+      pathname === '/(auth)/login' ||
+      pathname === '/login' ||
+      pathname === '/(auth)/forgot-password' ||
+      pathname === '/forgot-password';
+
+    if (!user && !isPublicRoute) {
+      router.replace('/(auth)/login');
+    }
+  }, [isReady, user, pathname, router]);
 
   // Android Back Button Handling:
   // When pressing back from any feature/tab, come to Home first.

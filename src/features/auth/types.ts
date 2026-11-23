@@ -17,6 +17,8 @@ export interface UserSession {
   hostelite: boolean;
   changePasswordRequired: boolean;
   theme?: 'light' | 'dark' | 'system';
+  lastLoginAt?: number;
+  lastActiveAt?: number;
 }
 
 export interface AuthState {

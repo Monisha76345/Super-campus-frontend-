@@ -31,6 +31,7 @@ import {
   fetchThreadDetailsApi,
   searchUsersApi,
   sendMessageApi,
+  startDirectChatApi,
   updateGroupChatApi,
 } from './chat-api';
 import { ChatMessage, ChatThread, ParticipantSummary, SearchUser } from './types';
@@ -43,18 +44,20 @@ interface ChatDetailScreenProps {
   participantsCount?: number;
   token: string;
   tenantId: string;
+  initialDraft?: string;
   onBack: () => void;
   onUpdateGroup?: (updatedName: string, updatedCount: number) => void;
 }
 
 export function ChatDetailScreen({
-  threadId,
+  threadId: initialThreadId,
   recipient,
   isGroup = false,
   groupName,
   participantsCount,
   token,
   tenantId,
+  initialDraft,
   onBack,
   onUpdateGroup,
 }: ChatDetailScreenProps) {
@@ -64,10 +67,11 @@ export function ChatDetailScreen({
   const insets = useSafeAreaInsets();
   const { user } = useAuthSession();
 
+  const [threadId, setThreadId] = useState(initialThreadId);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [draft, setDraft] = useState('');
+  const [draft, setDraft] = useState(initialDraft || '');
   const [sending, setSending] = useState(false);
   const [selectedMedia, setSelectedMedia] = useState<{ uri: string; type: 'IMAGE' | 'VIDEO' } | null>(null);
   const [uploadingMedia, setUploadingMedia] = useState(false);
@@ -100,6 +104,11 @@ export function ChatDetailScreen({
 
   const loadMessages = useCallback(
     async (isManualRefresh = false) => {
+      if (threadId.startsWith('direct-')) {
+        setLoading(false);
+        setRefreshing(false);
+        return;
+      }
       if (isManualRefresh) setRefreshing(true);
       try {
         const list = await fetchMessagesApi(token, tenantId, threadId);
@@ -355,8 +364,25 @@ export function ChatDetailScreen({
       setDraft('');
       setSelectedMedia(null);
 
-      const saved = await sendMessageApi(token, tenantId, threadId, text, uploadedMediaUrl, mediaType);
-      setMessages((prev) => prev.map((m) => (m.id === tempId ? saved : m)));
+      let effectiveThreadId = threadId;
+      if (threadId.startsWith('direct-')) {
+        try {
+          const newThread = await startDirectChatApi(token, tenantId, recipient.userId);
+          effectiveThreadId = newThread.id;
+          setThreadId(newThread.id);
+        } catch (e) {
+          console.warn('Could not initialize direct chat on server, sending with local fallback:', e);
+        }
+      }
+
+      try {
+        const saved = await sendMessageApi(token, tenantId, effectiveThreadId, text, uploadedMediaUrl, mediaType);
+        setMessages((prev) => prev.map((m) => (m.id === tempId ? saved : m)));
+      } catch (sendErr: any) {
+        console.warn('Backend send message notice:', sendErr);
+        // Retain optimistic message in thread so user does not lose their typed message
+      }
+
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
       }, 100);

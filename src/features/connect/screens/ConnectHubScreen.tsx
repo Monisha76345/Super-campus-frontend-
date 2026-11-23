@@ -1,5 +1,5 @@
-import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
 import { View } from 'react-native';
 
 import { useAuthSession } from '@/features/auth';
@@ -33,11 +33,21 @@ export function ConnectHubScreen() {
   const tenantId = user?.tenantId || 'nmit';
   const campusName = user?.campusName?.replace(/\s*campus\s*/i, '').trim() || 'NMIT';
 
-  const [mode, setMode] = useState<ConnectViewMode>('hub');
+  const params = useLocalSearchParams<{ tab?: ConnectTab; mode?: ConnectViewMode }>();
+  const [mode, setMode] = useState<ConnectViewMode>(params.mode || (params.tab ? 'feed' : 'hub'));
   const [previousMode, setPreviousMode] = useState<ConnectViewMode>('hub');
   const [selectedMember, setSelectedMember] = useState<ConnectMember | null>(null);
-  const [selectedFeedTab, setSelectedFeedTab] = useState<ConnectTab>('events');
+  const [selectedFeedTab, setSelectedFeedTab] = useState<ConnectTab>(params.tab || 'events');
   const [opportunityType, setOpportunityType] = useState<'INTERNSHIP' | 'JOB'>('INTERNSHIP');
+
+  useEffect(() => {
+    if (params.tab) {
+      setSelectedFeedTab(params.tab);
+      setMode('feed');
+    } else if (params.mode) {
+      setMode(params.mode);
+    }
+  }, [params.tab, params.mode]);
 
   const transitionTo = (nextMode: ConnectViewMode, tab?: ConnectTab) => {
     if (tab) setSelectedFeedTab(tab);

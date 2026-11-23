@@ -1,3 +1,4 @@
+import { authEvents } from '@/features/auth/session/auth-events';
 import { publicEnv } from '@/lib/config/public-env';
 import { sessionStorage } from '@/lib/storage/session-storage';
 import { ApiError } from './api-error';
@@ -88,6 +89,9 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   }
 
   if (!response.ok || payload.success === false) {
+    if (response.status === 401) {
+      authEvents.notifySessionExpired();
+    }
     throw new ApiError(
       readMessage(payload, 'Request failed'),
       response.status,

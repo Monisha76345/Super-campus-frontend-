@@ -34,26 +34,38 @@ const SERVICES = [
   { id: 'notifications', title: 'Notifications', detail: 'Campus alerts', icon: 'notifications' as const, accent: '#F59E0B' },
 ];
 
+import { AlumniApprovalModal } from './components/admin/AlumniApprovalModal';
 import { CsvDirectoryImportModal } from './components/admin/CsvDirectoryImportModal';
 
 export function ServicesScreen() {
   const router = useRouter();
   const { user } = useAuthSession();
   const [showCsvModal, setShowCsvModal] = useState(false);
+  const [showAlumniModal, setShowAlumniModal] = useState(false);
   const role = (user?.role || '').toLowerCase();
   const isAdmin = role === 'admin' || role === 'campus_admin' || role === 'superadmin';
 
   return (
     <CampusScreen title="Campus Services" subtitle="Your campus, in one place." activeTab="services">
       {isAdmin && (
-        <CampusCard
-          icon="shield-checkmark"
-          title="Student Directory CSV Importer"
-          detail="Batch onboard students, faculty & hostelites to campus DB"
-          accent="#38BDF8"
-          meta="Admin"
-          onPress={() => setShowCsvModal(true)}
-        />
+        <>
+          <CampusCard
+            icon="school"
+            title="Alumni Approvals"
+            detail="Review and approve pending alumni USN and mobile registrations"
+            accent="#10B981"
+            meta="Admin"
+            onPress={() => setShowAlumniModal(true)}
+          />
+          <CampusCard
+            icon="shield-checkmark"
+            title="Student Directory CSV Importer"
+            detail="Batch onboard students, faculty & hostelites to campus DB"
+            accent="#38BDF8"
+            meta="Admin"
+            onPress={() => setShowCsvModal(true)}
+          />
+        </>
       )}
       {SERVICES.map((item) => (
         <CampusCard
@@ -69,6 +81,10 @@ export function ServicesScreen() {
       <CsvDirectoryImportModal
         visible={showCsvModal}
         onClose={() => setShowCsvModal(false)}
+      />
+      <AlumniApprovalModal
+        visible={showAlumniModal}
+        onClose={() => setShowAlumniModal(false)}
       />
     </CampusScreen>
   );

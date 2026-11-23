@@ -49,6 +49,36 @@ export const authApi = {
     });
   },
 
+  async requestAlumniOtp(usn: string, mobile: string): Promise<{ destination: string; debugOtp?: string }> {
+    const tenantId = publicEnv.tenantId;
+    return apiRequest<{ destination: string; debugOtp?: string }>('/auth/alumni/otp', {
+      method: 'POST',
+      tenantId,
+      body: { usn: usn.trim(), mobile: mobile.trim(), tenantId },
+    });
+  },
+
+  async verifyAlumniAndSetPassword(payload: {
+    usn: string;
+    mobile: string;
+    otp: string;
+    password: string;
+  }): Promise<UserSession> {
+    const tenantId = publicEnv.tenantId;
+    const data = await apiRequest<LoginApiData>('/auth/alumni/verify', {
+      method: 'POST',
+      tenantId,
+      body: {
+        usn: payload.usn.trim(),
+        mobile: payload.mobile.trim(),
+        otp: payload.otp.trim(),
+        password: payload.password,
+        tenantId,
+      },
+    });
+    return toUserSession(data);
+  },
+
   async requestForgotPasswordOtp(email: string): Promise<{ destination: string; debugOtp?: string }> {
     const tenantId = publicEnv.tenantId;
     return apiRequest<{ destination: string; debugOtp?: string }>('/auth/forgot-password/otp', {

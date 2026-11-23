@@ -164,8 +164,12 @@ export function ClubProfileModal({
   }, [customPosts, defaultClubPosts]);
 
   const allAchievements = useMemo(() => {
+    const fromClub = club?.achievements || [];
+    if (fromClub.length > 0) {
+      return [...customAchievements, ...fromClub];
+    }
     return [...customAchievements, ...defaultClubAchievements];
-  }, [customAchievements, defaultClubAchievements]);
+  }, [customAchievements, defaultClubAchievements, club?.achievements]);
 
   // Handle Join / Leave club
   const handleToggleJoin = async () => {
@@ -451,6 +455,14 @@ export function ClubProfileModal({
                 <Text style={styles.sectionTitle}>About the Club</Text>
                 <Text style={styles.descriptionText}>{club.description}</Text>
               </View>
+
+              {/* Detailed Overview Section */}
+              {club.overview ? (
+                <View style={styles.sectionContainer}>
+                  <Text style={styles.sectionTitle}>Detailed Overview & Mission</Text>
+                  <Text style={styles.descriptionText}>{club.overview}</Text>
+                </View>
+              ) : null}
 
               {/* Lead Coordinator */}
               {club.leadName ? (
